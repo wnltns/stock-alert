@@ -10,6 +10,7 @@ description: "StockAlert 프로젝트의 코딩 규칙, 명명 규칙, 파일 �
 - **컴포넌트**: PascalCase (`StockCard`, `ConditionForm`)
 - **상수**: UPPER_SNAKE_CASE (`MAX_CONDITIONS`, `DEFAULT_REFRESH_TIME`)
 - **파일명**: kebab-case (`stock-card.tsx`, `condition-form.tsx`)
+- **데이터베이스**: snake_case (`stock_subscriptions`, `alert_conditions`)
 
 ## 컴포넌트 구조
 ```typescript
@@ -34,20 +35,41 @@ export function StockCard({ stockCode, stockName, currentPrice, changeRate }: St
     /ui               # shadcn/ui 기본 컴포넌트
     /stock            # 주식 관련 컴포넌트
     /condition        # 조건 관련 컴포넌트
-  /pages              # Next.js 페이지
+    /auth             # 인증 관련 컴포넌트
+  /app                # Next.js App Router
+    /api              # API Routes
   /lib                # 유틸리티 함수 및 설정
+    /supabase         # Supabase 클라이언트 및 설정
+    /validations      # 데이터 검증 스키마
   /types              # TypeScript 타입 정의
+    /database         # 데이터베이스 타입 정의
   /hooks              # 커스텀 React 훅
+    /supabase         # Supabase 관련 훅
   /constants          # 상수 정의
 ```
+
+## Supabase 연동 규칙
+- **클라이언트**: `@supabase/supabase-js` 사용
+- **타입 생성**: `supabase gen types typescript` 명령어로 타입 자동 생성
+- **Row Level Security**: 모든 테이블에 RLS 정책 적용
+- **배치 처리**: Supabase Scheduled Functions를 통한 정기적 주가 조회
+- **에러 처리**: Supabase 에러를 사용자 친화적 메시지로 변환
 
 ## 상태 관리
 - **useState**: 간단한 로컬 상태
 - **useReducer**: 복잡한 상태 로직
 - **Context API**: 전역 상태 (필요시)
 - **커스텀 훅**: 재사용 가능한 상태 로직
+- **Supabase 데이터**: 일반적인 CRUD 작업을 통한 데이터 관리
+
+## API 설계
+- **RESTful API**: Next.js API Routes 활용
+- **타입 안전성**: Supabase 생성 타입 활용
+- **에러 핸들링**: 일관된 에러 응답 형식
+- **인증**: Supabase Auth 토큰 검증
 
 ## 에러 처리
 - **사용자 친화적**: 기술적 에러를 사용자가 이해할 수 있는 메시지로 변환
-- **입력 검증**: 사용자 입력에 대한 즉각적인 유효성 검사
+- **입력 검증**: Zod를 활용한 스키마 검증
 - **타입 검증**: TypeScript를 활용한 컴파일 타임 검증
+- **Supabase 에러**: 데이터베이스 에러를 적절히 처리

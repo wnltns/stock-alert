@@ -9,12 +9,30 @@ description: "주식 구독 및 알림 조건 설정 앱의 프로젝트 개요�
 주식 구독 및 알림 조건 설정 앱. 사용자가 관심 주식을 등록하고 등락률 조건을 만족했을 때 알림을 받는 앱입니다.
 
 ## 현재 개발 단계
-- **UI 구현 단계**: 실제 API 연동 없이 UI만 구현
-- **Mock 데이터 사용**: 개발용 가짜 데이터로 기능 시뮬레이션
+- **Supabase DB 연동 단계**: 실제 데이터베이스와 연동하여 개발 진행
+- **실제 데이터 사용**: Supabase PostgreSQL 데이터베이스 활용
+- **인증 시스템**: Supabase Auth를 통한 사용자 인증
+- **배치 처리**: Supabase Scheduled Functions를 통한 정기적 주가 조회
 - **shadcn/ui 활용**: 모든 UI 컴포넌트는 shadcn/ui 기반
+
+## 기술 스택
+- **Frontend**: Next.js 15, React 19, TypeScript, Tailwind CSS
+- **Backend**: Supabase (PostgreSQL, Auth, Scheduled Functions, Edge Functions)
+- **UI**: shadcn/ui, Lucide React
+- **배포**: Vercel (Frontend), Supabase (Backend)
 
 ## 주요 화면
 - 메인 화면: 구독 주식 목록
 - 주식 상세: 개별 주식 정보 및 조건 관리  
-- 조건 설정: 알림 조건 추가/수정
+- 조건 설정: 알림 조건 추가/수정 (DB 연동)
 - 설정: 자동 조회 시간 설정
+- 인증: 로그인/회원가입 (Supabase Auth)
+
+## 데이터베이스 구조
+- **users**: 사용자 정보
+- **stock_subscriptions**: 주식 구독 정보
+- **alert_conditions**: 알림 조건
+- **stock_prices**: 주가 데이터 히스토리
+- **notifications**: 알림 발송 기록
+- **fcm_tokens**: 푸시 알림 토큰 관리
+- **app_settings**: 앱 설정

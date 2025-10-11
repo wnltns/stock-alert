@@ -71,78 +71,220 @@ StockAlert는 사용자가 관심 있는 주식을 등록하고, 지정한 등�
 
 # 필요한 패키지와 라이브러리
 
-- **Next.js**: 웹앱 및 PWA 구현 (페이지 라우팅, API 라우트)  
-- **React**: UI 컴포넌트 구성  
+- **Next.js 15**: 웹앱 및 PWA 구현 (App Router, API Routes)  
+- **React 19**: UI 컴포넌트 구성  
+- **Supabase**: 백엔드 서비스 (PostgreSQL, Auth, Scheduled Functions, Edge Functions)
+  - `@supabase/supabase-js`: Supabase 클라이언트
+  - `@supabase/auth-helpers-nextjs`: Next.js 인증 헬퍼
 - **Firebase Cloud Messaging (FCM)**: 푸시 알림 발송 및 수신 (Service Worker와 연계)  
-- **Supabase JS SDK**: DB, 인증(Auth), Edge Functions 호출  
-- **Workbox** (선택): PWA Service Worker 유틸  
+- **shadcn/ui**: UI 컴포넌트 라이브러리
+- **Tailwind CSS**: 스타일링 프레임워크
+- **Lucide React**: 아이콘 라이브러리
+- **Zod**: 데이터 검증 스키마
 - **TypeScript**: 안정적인 타입 관리  
 - **ESLint / Prettier**: 코드 품질 관리  
 
-> ⚠ 서버리스 환경에서는 Node-cron이나 Redis 없이 **Supabase Scheduled Functions**를 사용하여 알림 스케줄링을 처리합니다.
+> ⚠ 서버리스 환경에서는 Node-cron이나 Redis 없이 **Supabase Scheduled Functions**를 사용하여 정기적 주가 조회 및 알림 스케줄링을 처리합니다.
 
 ---
 
-# 코드 예시 (주가 조회 및 조건 체크 — Supabase Edge Function)
+# 코드 예시 (주가 조회 및 조건 체크 — Supabase Scheduled Function)
 
 ```typescript
-// /apps/edge-functions/check-stocks/index.ts
+// /supabase/functions/check-stocks/index.ts
+// 매일 설정된 시간에 실행되는 Scheduled Function
 import { serve } from "https://deno.land/std/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js";
-import { sendPushNotification } from "@common-lib/fcmClient";
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 async function checkConditions() {
-  const { data: subscriptions } = await supabase.from("subscriptions").select("*");
+  console.log("🔄 정기적 주가 조회 및 조건 체크 시작...");
+  
+  // 활성화된 주식 구독 조회
+  const { data: subscriptions, error: subError } = await supabase
+    .from("stock_subscriptions")
+    .select(`
+      id,
+      user_id,
+      stock_code,
+      stock_name,
+      base_price,
+      alert_conditions!inner(
+        id,
+        condition_type,
+        threshold,
+        period_days,
+        base_price,
+        target_price,
+        is_active
+      )
+    `)
+    .eq("is_active", true);
 
-  for (const sub of subscriptions ?? []) {
-    const res = await fetch(`https://api.stock.com/${sub.stock_code}`);
-    const stock = await res.json();
-    const currentPrice = stock.close;
+  if (subError) {
+    console.error("구독 조회 오류:", subError);
+    return;
+  }
 
-    const { data: conditions } = await supabase
-      .from("conditions")
-      .select("*")
-      .eq("subscription_id", sub.id);
+  for (const subscription of subscriptions ?? []) {
+    try {
+      // 외부 주가 API에서 현재 가격 조회
+      const stockResponse = await fetch(`https://api.example.com/stocks/${subscription.stock_code}`);
+      const stockData = await stockResponse.json();
+      const currentPrice = stockData.price;
 
-    for (const cond of conditions ?? []) {
-      if (validateCondition(cond, currentPrice)) {
-        await sendPushNotification(sub.user_id, {
-          title: `${sub.stock_name} 알림`,
-          body: `${cond.description} 조건 충족 (${currentPrice}원)`
+      // 주가 데이터 저장
+      await supabase
+        .from("stock_prices")
+        .insert({
+          stock_code: subscription.stock_code,
+          market: "KOSPI", // 실제로는 API에서 가져와야 함
+          price: currentPrice,
+          change_rate: stockData.changeRate,
+          change_amount: stockData.changeAmount,
+          volume: stockData.volume,
+          price_date: new Date().toISOString().split('T')[0]
         });
+
+      // 각 조건 검사
+      for (const condition of subscription.alert_conditions) {
+        if (!condition.is_active) continue;
+
+        const isConditionMet = validateCondition(condition, currentPrice);
+        
+        if (isConditionMet) {
+          // 조건 충족 시 알림 생성
+          await createNotification(subscription, condition, currentPrice);
+          
+          // 조건 충족 시간 업데이트
+          await supabase
+            .from("alert_conditions")
+            .update({ 
+              condition_met_at: new Date().toISOString(),
+              last_checked_at: new Date().toISOString()
+            })
+            .eq("id", condition.id);
+        } else {
+          // 조건 체크 시간만 업데이트
+          await supabase
+            .from("alert_conditions")
+            .update({ last_checked_at: new Date().toISOString() })
+            .eq("id", condition.id);
+        }
       }
+    } catch (error) {
+      console.error(`주식 ${subscription.stock_code} 처리 오류:`, error);
     }
   }
 }
 
-function validateCondition(cond: any, price: number) {
-  if (cond.type === "daily_drop" && cond.threshold) {
-    return price <= cond.base_price * (1 - cond.threshold / 100);
+function validateCondition(condition: any, currentPrice: number): boolean {
+  const { condition_type, threshold, base_price } = condition;
+  
+  switch (condition_type) {
+    case "daily_drop":
+      return currentPrice <= base_price * (1 - threshold / 100);
+    case "daily_rise":
+      return currentPrice >= base_price * (1 + threshold / 100);
+    case "period_drop":
+      // 기간 하락 로직 (실제로는 기간별 가격 히스토리 필요)
+      return currentPrice <= base_price * (1 - threshold / 100);
+    case "period_rise":
+      // 기간 상승 로직 (실제로는 기간별 가격 히스토리 필요)
+      return currentPrice >= base_price * (1 + threshold / 100);
+    default:
+      return false;
   }
-  return false;
+}
+
+async function createNotification(subscription: any, condition: any, currentPrice: number) {
+  const { data: fcmTokens } = await supabase
+    .from("fcm_tokens")
+    .select("token")
+    .eq("user_id", subscription.user_id)
+    .eq("is_active", true);
+
+  if (!fcmTokens || fcmTokens.length === 0) return;
+
+  const notification = {
+    user_id: subscription.user_id,
+    subscription_id: subscription.id,
+    condition_id: condition.id,
+    notification_type: "push",
+    title: `${subscription.stock_name} 알림`,
+    message: `${condition.condition_type} 조건 충족 (현재가: ${currentPrice.toLocaleString()}원)`,
+    sent_at: new Date().toISOString(),
+    delivery_status: "pending"
+  };
+
+  // 알림 기록 저장
+  const { data: notificationRecord } = await supabase
+    .from("notifications")
+    .insert(notification)
+    .select()
+    .single();
+
+  // FCM 푸시 알림 발송
+  for (const tokenData of fcmTokens) {
+    try {
+      await fetch("https://fcm.googleapis.com/fcm/send", {
+        method: "POST",
+        headers: {
+          "Authorization": `key=${Deno.env.get("FCM_SERVER_KEY")}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          to: tokenData.token,
+          notification: {
+            title: notification.title,
+            body: notification.message
+          }
+        })
+      });
+
+      // 전달 상태 업데이트
+      await supabase
+        .from("notifications")
+        .update({ 
+          delivery_status: "sent",
+          delivery_confirmed_at: new Date().toISOString()
+        })
+        .eq("id", notificationRecord.id);
+    } catch (error) {
+      console.error("FCM 전송 오류:", error);
+      await supabase
+        .from("notifications")
+        .update({ 
+          delivery_status: "failed",
+          error_message: error.message
+        })
+        .eq("id", notificationRecord.id);
+    }
+  }
 }
 
 serve(async () => {
   await checkConditions();
-  return new Response("Stock check done!", { status: 200 });
+  return new Response("Stock check completed!", { status: 200 });
 });
-````
+```
 
 * **실행 주기**: Supabase Scheduled Functions 설정 → 매일 18시 실행
 * **데이터 흐름**:
 
-  1. `subscriptions` → 사용자가 구독한 종목 조회
+  1. `stock_subscriptions` → 사용자가 구독한 종목 조회
   2. 외부 주가 API → 최신 주가 가져오기
-  3. `conditions` → 조건 검사
-  4. `fcm_tokens` → 사용자 디바이스 토큰 조회 후 알림 발송
+  3. `stock_prices` → 주가 데이터 저장
+  4. `alert_conditions` → 조건 검사
+  5. `notifications` → 알림 기록 저장
+  6. `fcm_tokens` → 사용자 디바이스 토큰 조회 후 알림 발송
 
 ---
 
-# Current File Structure (모노레포 기반)
+# Current File Structure (Supabase 연동)
 
 ```
 /stock-alert-app
@@ -151,30 +293,61 @@ serve(async () => {
  │    ├── manifest.json              # PWA 매니페스트
  │    └── icons/                     # PWA 아이콘 리소스
  ├── /src
- │    ├── /components                # UI 컴포넌트 (버튼, 카드 등)
- │    ├── /pages
- │    │    ├── index.tsx             # 홈 화면 (구독 목록)
- │    │    ├── stock/[id].tsx        # 개별 주식 상세
- │    │    ├── conditions.tsx         # 알림 조건 설정
- │    │    └── api/subscribe.ts      # API Route (구독 추가)
- │    ├── /lib
- │    │    ├── supabaseClient.ts     # Supabase 클라이언트 초기화
- │    │    ├── fcmClient.ts          # FCM 클라이언트 연동
- │    │    └── pwa.ts                # PWA 관련 유틸 (Service Worker 등록 등)
- │    └── app.tsx                    # Next.js 메인 엔트리
+ │    ├── /app                       # Next.js App Router
+ │    │    ├── /api                  # API Routes
+ │    │    │    ├── /auth             # 인증 관련 API
+ │    │    │    ├── /subscriptions    # 구독 관련 API
+ │    │    │    └── /conditions       # 조건 관련 API
+ │    │    ├── /auth                 # 인증 페이지
+ │    │    │    ├── login/            # 로그인 페이지
+ │    │    │    └── signup/           # 회원가입 페이지
+ │    │    ├── /dashboard            # 대시보드 페이지
+ │    │    ├── /settings             # 설정 페이지
+ │    │    ├── globals.css            # 전역 스타일
+ │    │    ├── layout.tsx             # 루트 레이아웃
+ │    │    └── page.tsx               # 메인 페이지
+ │    ├── /components                # UI 컴포넌트
+ │    │    ├── /ui                   # shadcn/ui 기본 컴포넌트
+ │    │    ├── /auth                 # 인증 관련 컴포넌트
+ │    │    ├── /stock                # 주식 관련 컴포넌트
+ │    │    └── /condition            # 조건 관련 컴포넌트
+ │    ├── /lib                       # 유틸리티 함수 및 설정
+ │    │    ├── /supabase             # Supabase 클라이언트
+ │    │    │    ├── client.ts        # 클라이언트 사이드 클라이언트
+ │    │    │    ├── server.ts         # 서버 사이드 클라이언트
+ │    │    │    └── middleware.ts     # 미들웨어 클라이언트
+ │    │    ├── /validations          # Zod 검증 스키마
+ │    │    ├── /utils.ts             # 유틸리티 함수
+ │    │    └── /auth.ts              # 인증 헬퍼 함수
+ │    ├── /types                     # TypeScript 타입 정의
+ │    │    ├── /database.ts          # 데이터베이스 타입
+ │    │    ├── /auth.ts              # 인증 타입
+ │    │    └── /api.ts               # API 타입
+ │    ├── /hooks                     # 커스텀 React 훅
+ │    │    ├── /supabase             # Supabase 관련 훅
+ │    │    │    ├── use-user.ts      # 사용자 상태 훅
+ │    │    │    ├── use-subscriptions.ts # 구독 관리 훅
+ │    │    │    └── use-conditions.ts    # 조건 관리 훅
+ │    │    └── /auth.ts              # 인증 관련 훅
+ │    └── /constants                 # 상수 정의
  ├── /supabase
- │    ├── /functions
- │    │    └── check-stocks/index.ts # Supabase Edge Function (조건 검사 + 알림)
- │    └── schema.sql                 # DB 테이블 정의 (subscriptions, conditions, fcm_tokens)
+ │    ├── /functions                 # Supabase Edge Functions
+ │    │    ├── /check-stocks/        # 주가 체크 함수
+ │    │    └── /send-notifications/ # 알림 발송 함수
+ │    ├── /migrations               # 데이터베이스 마이그레이션
+ │    ├── /seed.sql                 # 초기 데이터
+ │    └── config.toml               # Supabase 설정
+ ├── .env.local                     # 환경 변수
  ├── package.json
  ├── tsconfig.json
+ ├── tailwind.config.js
  └── README.md
-
 ```
 
-* **/public/firebase-messaging-sw.js** → 브라우저 푸시 알림 처리용 Service Worker
-* **/supabase/functions/check-stocks** → 매일 조건 검사 및 알림 발송 함수 (Scheduled Function)
-* **/lib/supabaseClient.ts** → 앱에서 DB/인증 접근용
-* **/lib/fcmClient.ts** → 사용자 디바이스 등록 및 토큰 관리
+* **/src/lib/supabase/client.ts** → 클라이언트 사이드 Supabase 클라이언트
+* **/src/lib/supabase/server.ts** → 서버 사이드 Supabase 클라이언트  
+* **/supabase/functions/check-stocks** → 매일 정기적 주가 조회 및 조건 검사 함수
+* **/src/hooks/supabase/** → Supabase 데이터 관리를 위한 커스텀 훅
+* **/src/app/api/** → Next.js API Routes (Supabase 연동)
 
 ```

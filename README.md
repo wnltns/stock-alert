@@ -16,6 +16,7 @@
 - **Tailwind CSS**: 스타일링
 - **shadcn/ui**: UI 컴포넌트 라이브러리
 - **Lucide React**: 아이콘 라이브러리
+- **Supabase**: 백엔드 서비스 (PostgreSQL, Auth, Functions)
 
 ## 프로젝트 구조
 
@@ -40,19 +41,33 @@ src/
 ### 1. 의존성 설치
 
 ```bash
-npm install
+pnpm install
 ```
 
-### 2. 개발 서버 실행
+### 2. Supabase 설정
 
-```bash
-npm run dev
+프로젝트 루트에 `.env.local` 파일을 생성하고 다음 내용을 추가하세요:
+
+```env
+NEXT_PUBLIC_SUPABASE_URL=https://your-project-id.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key-here
 ```
 
-### 3. 빌드
+Supabase 프로젝트에서 URL과 Anon Key를 확인하는 방법:
+1. [Supabase Dashboard](https://supabase.com/dashboard)에 로그인
+2. 프로젝트 선택
+3. Settings > API에서 URL과 anon public key 확인
+
+### 3. 개발 서버 실행
 
 ```bash
-npm run build
+pnpm dev
+```
+
+### 4. 빌드
+
+```bash
+pnpm build
 ```
 
 ## 주요 컴포넌트
@@ -105,11 +120,12 @@ interface AlertCondition {
 
 ## 개발 규칙
 
-- **Mock 데이터 사용**: 실제 API 연동 없이 개발용 가짜 데이터 사용
+- **Supabase 연동**: 데이터베이스 타입 정의 완료, 실제 API 연동은 추후 진행
 - **TypeScript**: 모든 컴포넌트와 함수에 타입 정의
 - **shadcn/ui**: 모든 UI 컴포넌트는 shadcn/ui 기반
 - **반응형 디자인**: 모바일 우선 설계
 - **접근성**: Radix UI 기반으로 접근성 고려
+- **Mock 데이터 사용**: 현재는 개발용 가짜 데이터 사용, 추후 Supabase 연동 예정
 
 ## 라이선스
 
