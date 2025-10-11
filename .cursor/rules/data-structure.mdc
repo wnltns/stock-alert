@@ -1,0 +1,57 @@
+---
+title: "데이터 구조 규칙"
+description: "StockAlert 프로젝트의 핵심 데이터 모델, Mock 데이터 규칙 및 데이터 검증"
+---
+
+# 데이터 구조 규칙
+
+## 핵심 데이터 모델
+
+### 주식 구독
+```typescript
+interface StockSubscription {
+  id: string;
+  userId: string;
+  stockCode: string;        // 예: "005930" (삼성전자)
+  stockName: string;        // 예: "삼성전자"
+  addedAt: Date;
+  isActive: boolean;
+}
+```
+
+### 알림 조건
+```typescript
+interface AlertCondition {
+  id: string;
+  subscriptionId: string;
+  type: 'daily_drop' | 'daily_rise' | 'period_drop' | 'period_rise';
+  threshold: number;        // 퍼센트 값 (예: 4.0 = 4%)
+  period: number;          // 일수 (예: 3 = 3일)
+  basePrice: number;       // 기준 가격
+  createdAt: Date;
+  isActive: boolean;
+}
+```
+
+### 주가 데이터
+```typescript
+interface StockPrice {
+  stockCode: string;
+  currentPrice: number;
+  changeRate: number;      // 퍼센트 변화율
+  changeAmount: number;    // 절대 변화량
+  volume: number;          // 거래량
+  timestamp: Date;
+}
+```
+
+## Mock 데이터 규칙
+- **실제 API 호출 금지**: 외부 주가 API 연동하지 않음
+- **Mock 데이터 사용**: 개발용 가짜 데이터로 UI 구현
+- **데이터 일관성**: Mock 데이터는 실제 데이터 구조와 일치해야 함
+
+## 데이터 검증 규칙
+- **주식 코드**: 6자리 숫자 형식 검증
+- **주식명**: 1-100자 문자열 검증
+- **등락률**: -100% ~ +100% 범위 검증
+- **기간**: 1-30일 범위 검증
