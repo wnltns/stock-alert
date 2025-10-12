@@ -12,6 +12,7 @@ import { StockDetail, AlertCondition, AddConditionFormData } from '@/types';
 import { AddConditionDialog } from '@/components/condition/add-condition-dialog';
 import { EditConditionDialog } from '@/components/condition/edit-condition-dialog';
 import { useConfirmDialog } from '@/components/ui/confirm-dialog';
+import { AuthGuard } from '@/components/auth/auth-guard';
 
 export default function ConditionManagementPage() {
   const params = useParams();
@@ -172,7 +173,8 @@ export default function ConditionManagementPage() {
   }
 
   return (
-    <main className="min-h-screen bg-background transition-colors duration-300">
+    <AuthGuard>
+      <main className="min-h-screen bg-background transition-colors duration-300">
       <div className="container mx-auto px-4 py-8">
         {/* 헤더 */}
         <div className="mb-8">
@@ -340,5 +342,6 @@ export default function ConditionManagementPage() {
       {/* 확인 다이얼로그 */}
       {ConfirmDialog}
     </main>
+    </AuthGuard>
   );
 }
