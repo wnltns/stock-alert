@@ -8,31 +8,96 @@ import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { ArrowLeft, Plus, Edit, Trash2, TrendingUp, TrendingDown, RotateCcw } from 'lucide-react';
 import { MOCK_STOCK_DETAILS } from '@/constants/mock-data';
-import { StockDetail, AlertCondition, AddConditionFormData } from '@/types';
+import { StockDetail, AlertCondition, AddConditionFormData, StockSubscription } from '@/types';
 import { AddConditionDialog } from '@/components/condition/add-condition-dialog';
 import { EditConditionDialog } from '@/components/condition/edit-condition-dialog';
 import { useConfirmDialog } from '@/components/ui/confirm-dialog';
 import { AuthGuard } from '@/components/auth/auth-guard';
+import { supabase } from '@/lib/supabase/client';
+import { useAuth } from '@/hooks/use-auth';
 
 export default function ConditionManagementPage() {
   const params = useParams();
   const router = useRouter();
-  const stockId = params.stockId as string;
+  const stockCode = params.stockId as string; // 실제로는 stock_code
   
   const [stock, setStock] = useState<StockDetail | null>(null);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [editingCondition, setEditingCondition] = useState<AlertCondition | null>(null);
+  const [loading, setLoading] = useState(true);
   const { confirm: showConfirm, ConfirmDialog } = useConfirmDialog();
+  const { user } = useAuth();
 
   useEffect(() => {
-    const foundStock = MOCK_STOCK_DETAILS.find(s => s.subscription.id === stockId);
-    if (foundStock) {
-      setStock(foundStock);
-    } else {
-      // 주식이 없으면 홈으로 리다이렉트
-      router.push('/');
-    }
-  }, [stockId, router]);
+    const fetchStockData = async () => {
+      if (!user) return;
+      
+      try {
+        // 먼저 목업 데이터에서 찾기
+        const mockStock = MOCK_STOCK_DETAILS.find(s => s.subscription.stock_code === stockCode);
+        if (mockStock) {
+          setStock(mockStock);
+          setLoading(false);
+          return;
+        }
+
+        // 캐시된 데이터에 없으면 실제 데이터베이스에서 주식 구독 정보 조회
+        const { data: subscription, error } = await supabase
+          .from('stock_subscriptions')
+          .select('*')
+          .eq('user_id', user.id)
+          .eq('stock_code', stockCode)
+          .eq('is_active', true)
+          .single();
+
+        if (error) {
+          console.error('주식 구독 조회 오류:', error);
+          return;
+        }
+
+        if (subscription) {
+          // 알림 조건 조회
+          const { data: conditions, error: conditionsError } = await supabase
+            .from('alert_conditions')
+            .select('*')
+            .eq('subscription_id', subscription.id);
+
+          if (conditionsError) {
+            console.warn('알림 조건 조회 중 오류:', conditionsError);
+          }
+
+          // StockDetail로 변환 (주가 정보 없이)
+          const stockDetail: StockDetail = {
+            subscription: subscription,
+            stockInfo: {
+              code: subscription.stock_code,
+              name: subscription.stock_name,
+              logoUrl: '',
+              currentPrice: 0,
+              changeAmount: 0,
+              changeRate: 0,
+              marketStatus: 'CLOSE' as const,
+              marketName: subscription.market,
+              lastTradedAt: new Date(),
+              isRising: false,
+            },
+            conditions: conditions || [],
+          };
+          
+          setStock(stockDetail);
+        } else {
+          // 주식이 없으면 홈으로 리다이렉트
+          router.push('/');
+        }
+      } catch (error) {
+        console.error('주식 데이터 조회 오류:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchStockData();
+  }, [stockCode, user, router]);
 
   const handleAddCondition = (data: AddConditionFormData) => {
     if (!stock) return;
@@ -133,11 +198,11 @@ export default function ConditionManagementPage() {
   };
 
   const getConditionTypeLabel = (type: AlertCondition['condition_type']) => {
-    const labels = {
+    const labels: Record<string, string> = {
       drop: '하락',
       rise: '상승',
     };
-    return labels[type];
+    return labels[type] || type;
   };
 
   const getConditionIcon = (type: AlertCondition['condition_type']) => {
@@ -155,15 +220,28 @@ export default function ConditionManagementPage() {
   };
 
   const isConditionMet = (condition: AlertCondition) => {
-    if (!stock) return false;
-    const targetPrice = getTargetPrice(condition);
-    
-    if (condition.condition_type === 'rise') {
-      return stock.stockInfo.currentPrice >= targetPrice;
+    // 설정 페이지에서는 실시간 주가 정보가 없으므로 항상 '대기' 상태로 표시
+    return false;
+  };
+
+  const formatPrice = (price: number) => {
+    const isKorean = stock?.subscription.nation_type === 'KOREA' || stock?.subscription.nation_type === 'KOR';
+    if (isKorean) {
+      return price.toLocaleString() + '원';
     } else {
-      return stock.stockInfo.currentPrice <= targetPrice;
+      return price.toFixed(2);
     }
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-muted-foreground">주식 정보를 불러오는 중...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!stock) {
     return (
@@ -195,11 +273,13 @@ export default function ConditionManagementPage() {
           
           <div className="text-center">
             <div className="flex items-center justify-center gap-4 mb-2">
-              <h1 className="text-3xl font-bold">{stock.subscription.stock_name}</h1>
-              <div className="flex items-center gap-2">
+              <h1 className="text-3xl font-bold leading-tight">
+                {stock.subscription.stock_name}
+              </h1>
+              <div className="flex items-center gap-2 flex-shrink-0">
                 <span className="text-sm text-muted-foreground">알림</span>
                 <Switch
-                  checked={stock.subscription.is_active}
+                  checked={stock.subscription.is_active ?? false}
                   onCheckedChange={handleToggleActive}
                   className="h-4 w-8 [&>span]:h-3 [&>span]:w-3 [&>span]:data-[state=checked]:translate-x-4"
                 />
@@ -208,12 +288,6 @@ export default function ConditionManagementPage() {
             <p className="text-muted-foreground mb-4">{stock.subscription.stock_code}</p>
             
             <div className="flex items-center justify-center gap-4 mb-6">
-              <div className="text-center">
-                <div className="text-2xl font-bold">{stock.stockInfo.currentPrice.toLocaleString()}원</div>
-                <div className={`text-sm ${stock.stockInfo.changeRate > 0 ? 'text-green-600' : stock.stockInfo.changeRate < 0 ? 'text-red-600' : 'text-gray-600'}`}>
-                  {stock.stockInfo.changeRate > 0 ? '+' : ''}{stock.stockInfo.changeRate.toFixed(2)}%
-                </div>
-              </div>
               <Badge variant="outline">{stock.conditions.length}개 조건</Badge>
             </div>
           </div>
@@ -249,12 +323,12 @@ export default function ConditionManagementPage() {
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
                           {getConditionIcon(condition.condition_type)}
-                        <div>
-                          <CardTitle className="text-lg">
+                        <div className="flex-1 min-w-0">
+                          <CardTitle className="text-lg leading-tight">
                             {getConditionTypeLabel(condition.condition_type)} {condition.threshold}%
                           </CardTitle>
-                          <CardDescription>
-                            기준가: {condition.base_price.toLocaleString()}원 · {condition.period_days}일간
+                          <CardDescription className="leading-tight">
+                            기준가: {formatPrice(condition.base_price)} · {condition.period_days}일간
                           </CardDescription>
                         </div>
                         </div>
@@ -275,11 +349,11 @@ export default function ConditionManagementPage() {
                         </div>
                         <div>
                           <span className="text-muted-foreground">목표가:</span>
-                          <span className="ml-2 font-medium">{targetPrice.toLocaleString()}원</span>
+                          <span className="ml-2 font-medium">{formatPrice(targetPrice)}</span>
                         </div>
                         <div>
                           <span className="text-muted-foreground">현재가:</span>
-                          <span className="ml-2 font-medium">{stock.stockInfo.currentPrice.toLocaleString()}원</span>
+                          <span className="ml-2 font-medium">{formatPrice(stock.stockInfo.currentPrice)}</span>
                         </div>
                       </div>
                       

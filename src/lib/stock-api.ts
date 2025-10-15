@@ -10,16 +10,29 @@ const NAVER_STOCK_API_BASE_URL = 'https://m.stock.naver.com/api/stock';
  */
 export async function getStockInfo(stockCode: string): Promise<StockInfo> {
   try {
-    const response = await fetch(`${NAVER_STOCK_API_BASE_URL}/${stockCode}/basic`);
+    console.log(`주식 정보 조회 시도: ${stockCode}`);
+    
+    const response = await fetch(`${NAVER_STOCK_API_BASE_URL}/${stockCode}/basic`, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'application/json, text/plain, */*',
+        'Accept-Language': 'ko-KR,ko;q=0.9,en;q=0.8',
+        'Referer': 'https://m.stock.naver.com/',
+        'Origin': 'https://m.stock.naver.com',
+      },
+    });
     
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      const errorText = await response.text();
+      console.error(`API 호출 실패 - 코드: ${stockCode}, 상태: ${response.status}, 응답: ${errorText}`);
+      throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
     }
     
     const data: NaverStockApiResponse = await response.json();
+    console.log(`주식 정보 조회 성공: ${stockCode} - ${data.stockName}`);
     return normalizeStockData(data);
   } catch (error) {
-    console.error('주식 정보 조회 실패:', error);
+    console.error(`주식 정보 조회 실패 - 코드: ${stockCode}:`, error);
     throw new Error(`주식 정보를 가져올 수 없습니다: ${stockCode}`);
   }
 }
@@ -32,7 +45,7 @@ export async function getStockInfo(stockCode: string): Promise<StockInfo> {
 export function normalizeStockData(apiResponse: NaverStockApiResponse): StockInfo {
   // 가격 문자열에서 쉼표 제거하고 숫자로 변환
   const parsePrice = (priceStr: string): number => {
-    return parseInt(priceStr.replace(/,/g, ''), 10) || 0;
+    return parseFloat(priceStr.replace(/,/g, '')) || 0;
   };
 
   // 시장 상태 매핑
@@ -79,16 +92,31 @@ export function normalizeStockData(apiResponse: NaverStockApiResponse): StockInf
  * @returns Promise<StockInfo[]>
  */
 export async function getMultipleStockInfos(stockCodes: string[]): Promise<StockInfo[]> {
+  console.log(`여러 주식 정보 조회 시작: ${stockCodes.join(', ')}`);
+  
   const promises = stockCodes.map(code => getStockInfo(code));
   
   try {
     const results = await Promise.allSettled(promises);
     
-    return results
+    const successful = results
       .filter((result): result is PromiseFulfilledResult<StockInfo> => 
         result.status === 'fulfilled'
       )
       .map(result => result.value);
+    
+    const failed = results
+      .filter((result): result is PromiseRejectedResult => 
+        result.status === 'rejected'
+      );
+    
+    console.log(`주식 정보 조회 완료: 성공 ${successful.length}개, 실패 ${failed.length}개`);
+    
+    if (failed.length > 0) {
+      console.log('실패한 주식 코드들:', failed.map(f => f.reason));
+    }
+    
+    return successful;
   } catch (error) {
     console.error('여러 주식 정보 조회 실패:', error);
     return [];

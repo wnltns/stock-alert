@@ -1,57 +1,44 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { StockCard } from '@/components/stock/stock-card';
 import { AddStockDialog } from '@/components/stock/add-stock-dialog';
 import { MOCK_STOCK_DETAILS, MOCK_ALERT_HISTORY } from '@/constants/mock-data';
-import { StockDetail, AddStockFormData } from '@/types';
+import { StockDetail, AddStockFormData, StockSubscription } from '@/types';
 import { useAuth } from '@/hooks/use-auth';
+import { useStockPrices } from '@/hooks/use-stock-prices';
 import { AuthGuard } from '@/components/auth/auth-guard';
 import { UserDropdown } from '@/components/auth/user-dropdown';
+import { supabase } from '@/lib/supabase/client';
 
 export default function Home() {
   const router = useRouter();
   const [stocks, setStocks] = useState<StockDetail[]>(MOCK_STOCK_DETAILS);
+  const { user } = useAuth();
+  
+  // 실시간 주가 데이터를 가져오는 훅 사용
+  const { 
+    stocks: realStocks, 
+    loading, 
+    error, 
+    cached
+  } = useStockPrices();
 
   const handleAddStock = (data: AddStockFormData) => {
-    const newStock: StockDetail = {
-      subscription: {
-        id: Date.now().toString(),
-        user_id: 'user1',
-        stock_code: data.stockCode,
-        stock_name: data.stockName,
-        market: 'KOSPI',
-        added_at: new Date().toISOString(),
-        is_active: true,
-        base_price: null,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      },
-      stockInfo: {
-        code: data.stockCode,
-        name: data.stockName,
-        logoUrl: '',
-        currentPrice: 0,
-        changeAmount: 0,
-        changeRate: 0,
-        marketStatus: 'CLOSE',
-        marketName: 'KOSPI',
-        lastTradedAt: new Date(),
-        isRising: false,
-      },
-      conditions: [],
-    };
-    
-    setStocks(prev => [...prev, newStock]);
+    // 주식 등록 완료
+    console.log('주식 등록 완료:', data);
+    // 페이지 새로고침으로 최신 데이터 표시
+    window.location.reload();
   };
 
   const handleViewDetails = (stockId: string) => {
     router.push(`/conditions/${stockId}`);
   };
 
-  const handleAddCondition = (stockId: string) => {
-    router.push(`/conditions/${stockId}`);
+  const handleAddCondition = (stockCode: string) => {
+    console.log('설정 페이지로 이동:', stockCode);
+    router.push(`/conditions/${stockCode}`);
   };
 
   return (
@@ -77,31 +64,82 @@ export default function Home() {
               <AddStockDialog onAddStock={handleAddStock} />
             </div>
             
-            {stocks.length === 0 ? (
-              <div className="text-center py-12">
-                <p className="text-muted-foreground mb-4">
-                  아직 구독된 주식이 없습니다. 주식을 추가해보세요!
-                </p>
-              </div>
-            ) : (
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                {stocks.map((stock) => {
-                  const stockAlertHistory = MOCK_ALERT_HISTORY.filter(
-                    history => history.subscription_id === stock.subscription.id
-                  );
-                  
-                  return (
-                    <StockCard
-                      key={stock.subscription.id}
-                      stock={stock}
-                      onViewDetails={handleViewDetails}
-                      onAddCondition={handleAddCondition}
-                      alertHistory={stockAlertHistory}
-                    />
-                  );
-                })}
+            {/* 목업 데이터 섹션 */}
+            {stocks.length > 0 && (
+              <div className="mb-8">
+                <h2 className="text-2xl font-semibold mb-4 text-muted-foreground">
+                  샘플 데이터
+                </h2>
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 items-stretch">
+                  {stocks.map((stock) => {
+                    const stockAlertHistory = MOCK_ALERT_HISTORY.filter(
+                      history => history.subscription_id === stock.subscription.id
+                    );
+                    
+                    return (
+                      <StockCard
+                        key={stock.subscription.id}
+                        stock={stock}
+                        onViewDetails={handleViewDetails}
+                        onAddCondition={handleAddCondition}
+                        alertHistory={stockAlertHistory}
+                      />
+                    );
+                  })}
+                </div>
               </div>
             )}
+
+            {/* 실제 데이터 섹션 */}
+            <div className="mb-8">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-2xl font-semibold">
+                  내 주식 구독
+                </h2>
+                {cached && (
+                  <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded">
+                    캐시됨
+                  </span>
+                )}
+              </div>
+              
+              {error ? (
+                <div className="text-center py-8">
+                  <p className="text-red-500 mb-4">{error}</p>
+                  <p className="text-sm text-muted-foreground">
+                    페이지를 새로고침하거나 잠시 후 다시 시도해주세요.
+                  </p>
+                </div>
+              ) : loading ? (
+                <div className="text-center py-8">
+                  <p className="text-muted-foreground">주식 데이터를 불러오는 중...</p>
+                </div>
+              ) : realStocks.length === 0 ? (
+                <div className="text-center py-12">
+                  <p className="text-muted-foreground mb-4">
+                    아직 구독된 주식이 없습니다. 주식을 추가해보세요!
+                  </p>
+                </div>
+              ) : (
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 items-stretch">
+                  {realStocks.map((stock) => {
+                    const stockAlertHistory = MOCK_ALERT_HISTORY.filter(
+                      history => history.subscription_id === stock.subscription.id
+                    );
+                    
+                    return (
+                      <StockCard
+                        key={stock.subscription.id}
+                        stock={stock}
+                        onViewDetails={handleViewDetails}
+                        onAddCondition={handleAddCondition}
+                        alertHistory={stockAlertHistory}
+                      />
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </main>
