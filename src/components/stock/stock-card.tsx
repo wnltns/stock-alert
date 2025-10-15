@@ -14,18 +14,18 @@ interface StockCardProps {
 }
 
 export function StockCard({ stock, onViewDetails, onAddCondition, alertHistory = [] }: StockCardProps) {
-  const { subscription, price, conditions } = stock;
+  const { subscription, stockInfo, conditions } = stock;
   const [isHistoryDialogOpen, setIsHistoryDialogOpen] = useState(false);
   
   const getChangeIcon = () => {
-    if (price.changeRate > 0) return <TrendingUp className="h-4 w-4 text-green-500" />;
-    if (price.changeRate < 0) return <TrendingDown className="h-4 w-4 text-red-500" />;
+    if (stockInfo.changeRate > 0) return <TrendingUp className="h-4 w-4 text-green-500" />;
+    if (stockInfo.changeRate < 0) return <TrendingDown className="h-4 w-4 text-red-500" />;
     return <Minus className="h-4 w-4 text-gray-500" />;
   };
 
   const getChangeColor = () => {
-    if (price.changeRate > 0) return 'text-green-600 dark:text-green-400';
-    if (price.changeRate < 0) return 'text-red-600 dark:text-red-400';
+    if (stockInfo.changeRate > 0) return 'text-green-600 dark:text-green-400';
+    if (stockInfo.changeRate < 0) return 'text-red-600 dark:text-red-400';
     return 'text-gray-600 dark:text-gray-400';
   };
 
@@ -34,22 +34,22 @@ export function StockCard({ stock, onViewDetails, onAddCondition, alertHistory =
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <div>
-            <CardTitle className="text-lg">{subscription.stockName}</CardTitle>
-            <CardDescription>{subscription.stockCode}</CardDescription>
+            <CardTitle className="text-lg">{subscription.stock_name}</CardTitle>
+            <CardDescription>{subscription.stock_code}</CardDescription>
           </div>
           <div className="flex flex-col items-end gap-1">
             <Badge variant="outline">{conditions.length}개 조건</Badge>
             {conditions.length > 0 && (
               <div className="text-xs text-muted-foreground">
                 {conditions.filter(condition => {
-                  const targetPrice = condition.type === 'drop' 
-                    ? Math.round(condition.basePrice * (1 - condition.threshold / 100))
-                    : Math.round(condition.basePrice * (1 + condition.threshold / 100));
+                  const targetPrice = condition.condition_type === 'drop' 
+                    ? Math.round(condition.base_price * (1 - condition.threshold / 100))
+                    : Math.round(condition.base_price * (1 + condition.threshold / 100));
                   
-                  if (condition.type === 'rise') {
-                    return price.currentPrice >= targetPrice;
+                  if (condition.condition_type === 'rise') {
+                    return stockInfo.currentPrice >= targetPrice;
                   } else {
-                    return price.currentPrice <= targetPrice;
+                    return stockInfo.currentPrice <= targetPrice;
                   }
                 }).length}개 충족
               </div>
@@ -61,14 +61,14 @@ export function StockCard({ stock, onViewDetails, onAddCondition, alertHistory =
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2">
             {getChangeIcon()}
-            <span className="text-2xl font-bold">{price.currentPrice.toLocaleString()}원</span>
+            <span className="text-2xl font-bold">{stockInfo.currentPrice.toLocaleString()}원</span>
           </div>
           <div className={`text-right ${getChangeColor()}`}>
             <div className="text-sm font-medium">
-              {price.changeRate > 0 ? '+' : ''}{price.changeRate.toFixed(2)}%
+              {stockInfo.changeRate > 0 ? '+' : ''}{stockInfo.changeRate.toFixed(2)}%
             </div>
             <div className="text-xs">
-              {price.changeAmount > 0 ? '+' : ''}{price.changeAmount.toLocaleString()}원
+              {stockInfo.changeAmount > 0 ? '+' : ''}{stockInfo.changeAmount.toLocaleString()}원
             </div>
           </div>
         </div>
@@ -80,22 +80,22 @@ export function StockCard({ stock, onViewDetails, onAddCondition, alertHistory =
             <div className="space-y-1">
               {conditions.slice(0, 2).map((condition) => {
                 const typeLabels = {
-                  drop: '하락',
                   rise: '상승',
+                  drop: '하락',
                 };
                 
-                const targetPrice = condition.type === 'drop' 
-                  ? Math.round(condition.basePrice * (1 - condition.threshold / 100))
-                  : Math.round(condition.basePrice * (1 + condition.threshold / 100));
+                const targetPrice = condition.condition_type === 'drop' 
+                  ? Math.round(condition.base_price * (1 - condition.threshold / 100))
+                  : Math.round(condition.base_price * (1 + condition.threshold / 100));
                 
-                const isMet = condition.type === 'rise'
-                  ? price.currentPrice >= targetPrice
-                  : price.currentPrice <= targetPrice;
+                const isMet = condition.condition_type === 'rise'
+                  ? stockInfo.currentPrice >= targetPrice
+                  : stockInfo.currentPrice <= targetPrice;
                 
                 return (
                   <div key={condition.id} className="flex items-center justify-between text-xs bg-muted/50 dark:bg-muted/30 p-2 rounded transition-colors">
-                    <span>{typeLabels[condition.type]} {condition.threshold}% ({condition.period}일)</span>
-                    <Badge variant={isMet ? "success" : "outline"} className="text-xs">
+                    <span>{typeLabels[condition.condition_type]} {condition.threshold}% ({condition.period_days}일)</span>
+                    <Badge variant={isMet ? "default" : "outline"} className="text-xs">
                       {isMet ? "충족" : "대기"}
                     </Badge>
                   </div>
@@ -131,8 +131,8 @@ export function StockCard({ stock, onViewDetails, onAddCondition, alertHistory =
       
       {/* 알림 히스토리 다이얼로그 */}
       <AlertHistoryDialog
-        stockName={subscription.stockName}
-        stockCode={subscription.stockCode}
+        stockName={subscription.stock_name}
+        stockCode={subscription.stock_code}
         alertHistory={alertHistory}
         open={isHistoryDialogOpen}
         onOpenChange={setIsHistoryDialogOpen}

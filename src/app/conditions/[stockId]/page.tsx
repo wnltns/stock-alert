@@ -39,13 +39,19 @@ export default function ConditionManagementPage() {
 
     const newCondition: AlertCondition = {
       id: Date.now().toString(),
-      subscriptionId: stock.subscription.id,
-      type: data.type,
+      subscription_id: stock.subscription.id,
+      condition_type: data.type,
       threshold: data.threshold,
-      period: data.period,
-      basePrice: stock.price.currentPrice,
-      createdAt: new Date(),
-      isActive: true,
+      period_days: data.period,
+      base_price: stock.stockInfo.currentPrice,
+      target_price: data.type === 'drop' 
+        ? Math.round(stock.stockInfo.currentPrice * (1 - data.threshold / 100))
+        : Math.round(stock.stockInfo.currentPrice * (1 + data.threshold / 100)),
+      is_active: true,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      last_checked_at: null,
+      condition_met_at: null,
     };
 
     setStock(prev => prev ? {
@@ -88,7 +94,7 @@ export default function ConditionManagementPage() {
     
     showConfirm({
       title: `알림 ${actionText}`,
-      description: `${stock?.subscription.stockName} 주식의 알림을 ${actionText}하시겠습니까?`,
+      description: `${stock?.subscription.stock_name} 주식의 알림을 ${actionText}하시겠습니까?`,
       confirmText: actionText,
       cancelText: '취소',
       onConfirm: () => {
@@ -96,7 +102,7 @@ export default function ConditionManagementPage() {
           ...prev,
           subscription: {
             ...prev.subscription,
-            isActive
+            is_active: isActive
           }
         } : null);
       },
@@ -105,7 +111,7 @@ export default function ConditionManagementPage() {
 
   const handleResetConditionTracking = (conditionId: string) => {
     const condition = stock?.conditions.find(c => c.id === conditionId);
-    const conditionType = condition ? getConditionTypeLabel(condition.type) : '';
+    const conditionType = condition ? getConditionTypeLabel(condition.condition_type) : '';
     
     showConfirm({
       title: '조건 추적일 초기화',
@@ -118,7 +124,7 @@ export default function ConditionManagementPage() {
           ...prev,
           conditions: prev.conditions.map(condition => 
             condition.id === conditionId 
-              ? { ...condition, createdAt: new Date() }
+              ? { ...condition, created_at: new Date().toISOString(), updated_at: new Date().toISOString() }
               : condition
           )
         } : null);
@@ -126,7 +132,7 @@ export default function ConditionManagementPage() {
     });
   };
 
-  const getConditionTypeLabel = (type: AlertCondition['type']) => {
+  const getConditionTypeLabel = (type: AlertCondition['condition_type']) => {
     const labels = {
       drop: '하락',
       rise: '상승',
@@ -134,7 +140,7 @@ export default function ConditionManagementPage() {
     return labels[type];
   };
 
-  const getConditionIcon = (type: AlertCondition['type']) => {
+  const getConditionIcon = (type: AlertCondition['condition_type']) => {
     if (type === 'rise') {
       return <TrendingUp className="h-4 w-4 text-green-500" />;
     } else {
@@ -143,19 +149,19 @@ export default function ConditionManagementPage() {
   };
 
   const getTargetPrice = (condition: AlertCondition) => {
-    return condition.type === 'drop' 
-      ? Math.round(condition.basePrice * (1 - condition.threshold / 100))
-      : Math.round(condition.basePrice * (1 + condition.threshold / 100));
+    return condition.condition_type === 'drop' 
+      ? Math.round(condition.base_price * (1 - condition.threshold / 100))
+      : Math.round(condition.base_price * (1 + condition.threshold / 100));
   };
 
   const isConditionMet = (condition: AlertCondition) => {
     if (!stock) return false;
     const targetPrice = getTargetPrice(condition);
     
-    if (condition.type === 'rise') {
-      return stock.price.currentPrice >= targetPrice;
+    if (condition.condition_type === 'rise') {
+      return stock.stockInfo.currentPrice >= targetPrice;
     } else {
-      return stock.price.currentPrice <= targetPrice;
+      return stock.stockInfo.currentPrice <= targetPrice;
     }
   };
 
@@ -189,23 +195,23 @@ export default function ConditionManagementPage() {
           
           <div className="text-center">
             <div className="flex items-center justify-center gap-4 mb-2">
-              <h1 className="text-3xl font-bold">{stock.subscription.stockName}</h1>
+              <h1 className="text-3xl font-bold">{stock.subscription.stock_name}</h1>
               <div className="flex items-center gap-2">
                 <span className="text-sm text-muted-foreground">알림</span>
                 <Switch
-                  checked={stock.subscription.isActive}
+                  checked={stock.subscription.is_active}
                   onCheckedChange={handleToggleActive}
                   className="h-4 w-8 [&>span]:h-3 [&>span]:w-3 [&>span]:data-[state=checked]:translate-x-4"
                 />
               </div>
             </div>
-            <p className="text-muted-foreground mb-4">{stock.subscription.stockCode}</p>
+            <p className="text-muted-foreground mb-4">{stock.subscription.stock_code}</p>
             
             <div className="flex items-center justify-center gap-4 mb-6">
               <div className="text-center">
-                <div className="text-2xl font-bold">{stock.price.currentPrice.toLocaleString()}원</div>
-                <div className={`text-sm ${stock.price.changeRate > 0 ? 'text-green-600' : stock.price.changeRate < 0 ? 'text-red-600' : 'text-gray-600'}`}>
-                  {stock.price.changeRate > 0 ? '+' : ''}{stock.price.changeRate.toFixed(2)}%
+                <div className="text-2xl font-bold">{stock.stockInfo.currentPrice.toLocaleString()}원</div>
+                <div className={`text-sm ${stock.stockInfo.changeRate > 0 ? 'text-green-600' : stock.stockInfo.changeRate < 0 ? 'text-red-600' : 'text-gray-600'}`}>
+                  {stock.stockInfo.changeRate > 0 ? '+' : ''}{stock.stockInfo.changeRate.toFixed(2)}%
                 </div>
               </div>
               <Badge variant="outline">{stock.conditions.length}개 조건</Badge>
@@ -242,13 +248,13 @@ export default function ConditionManagementPage() {
                     <CardHeader className="pb-3">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
-                          {getConditionIcon(condition.type)}
+                          {getConditionIcon(condition.condition_type)}
                         <div>
                           <CardTitle className="text-lg">
-                            {getConditionTypeLabel(condition.type)} {condition.threshold}%
+                            {getConditionTypeLabel(condition.condition_type)} {condition.threshold}%
                           </CardTitle>
                           <CardDescription>
-                            기준가: {condition.basePrice.toLocaleString()}원 · {condition.period}일간
+                            기준가: {condition.base_price.toLocaleString()}원 · {condition.period_days}일간
                           </CardDescription>
                         </div>
                         </div>
@@ -265,7 +271,7 @@ export default function ConditionManagementPage() {
                         </div>
                         <div>
                           <span className="text-muted-foreground">기간:</span>
-                          <span className="ml-2 font-medium">{condition.period}일</span>
+                          <span className="ml-2 font-medium">{condition.period_days}일</span>
                         </div>
                         <div>
                           <span className="text-muted-foreground">목표가:</span>
@@ -273,7 +279,7 @@ export default function ConditionManagementPage() {
                         </div>
                         <div>
                           <span className="text-muted-foreground">현재가:</span>
-                          <span className="ml-2 font-medium">{stock.price.currentPrice.toLocaleString()}원</span>
+                          <span className="ml-2 font-medium">{stock.stockInfo.currentPrice.toLocaleString()}원</span>
                         </div>
                       </div>
                       
@@ -316,8 +322,8 @@ export default function ConditionManagementPage() {
 
         {/* 조건 추가 다이얼로그 */}
         <AddConditionDialog
-          stockName={stock.subscription.stockName}
-          stockPrice={stock.price.currentPrice}
+          stockName={stock.subscription.stock_name}
+          stockPrice={stock.stockInfo.currentPrice}
           onAddCondition={handleAddCondition}
           open={isAddDialogOpen}
           onOpenChange={setIsAddDialogOpen}
@@ -327,7 +333,7 @@ export default function ConditionManagementPage() {
         {editingCondition && (
           <EditConditionDialog
             condition={editingCondition}
-            stockPrice={stock.price.currentPrice}
+            stockPrice={stock.stockInfo.currentPrice}
             onEditCondition={handleEditCondition}
             open={true}
             onOpenChange={(open) => {

@@ -18,19 +18,27 @@ export default function Home() {
     const newStock: StockDetail = {
       subscription: {
         id: Date.now().toString(),
-        userId: 'user1',
-        stockCode: data.stockCode,
-        stockName: data.stockName,
-        addedAt: new Date(),
-        isActive: true,
+        user_id: 'user1',
+        stock_code: data.stockCode,
+        stock_name: data.stockName,
+        market: 'KOSPI',
+        added_at: new Date().toISOString(),
+        is_active: true,
+        base_price: null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
       },
-      price: {
-        stockCode: data.stockCode,
+      stockInfo: {
+        code: data.stockCode,
+        name: data.stockName,
+        logoUrl: '',
         currentPrice: 0,
-        changeRate: 0,
         changeAmount: 0,
-        volume: 0,
-        timestamp: new Date(),
+        changeRate: 0,
+        marketStatus: 'CLOSE',
+        marketName: 'KOSPI',
+        lastTradedAt: new Date(),
+        isRising: false,
       },
       conditions: [],
     };
@@ -39,8 +47,7 @@ export default function Home() {
   };
 
   const handleViewDetails = (stockId: string) => {
-    // TODO: 상세 페이지로 이동
-    console.log('View details for stock:', stockId);
+    router.push(`/conditions/${stockId}`);
   };
 
   const handleAddCondition = (stockId: string) => {
@@ -80,7 +87,7 @@ export default function Home() {
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                 {stocks.map((stock) => {
                   const stockAlertHistory = MOCK_ALERT_HISTORY.filter(
-                    history => history.subscriptionId === stock.subscription.id
+                    history => history.subscription_id === stock.subscription.id
                   );
                   
                   return (

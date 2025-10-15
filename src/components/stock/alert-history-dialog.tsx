@@ -25,7 +25,7 @@ export function AlertHistoryDialog({
 }: AlertHistoryDialogProps) {
   const [readHistory, setReadHistory] = useState<Set<string>>(new Set());
 
-  const getConditionTypeLabel = (type: AlertHistory['conditionType']) => {
+  const getConditionTypeLabel = (type: AlertHistory['condition_type']) => {
     const labels = {
       drop: '하락',
       rise: '상승',
@@ -33,7 +33,7 @@ export function AlertHistoryDialog({
     return labels[type];
   };
 
-  const getConditionIcon = (type: AlertHistory['conditionType']) => {
+  const getConditionIcon = (type: AlertHistory['condition_type']) => {
     if (type === 'rise') {
       return <TrendingUp className="h-4 w-4 text-green-500" />;
     } else {
@@ -59,7 +59,7 @@ export function AlertHistoryDialog({
     setReadHistory(prev => new Set([...prev, historyId]));
   };
 
-  const unreadCount = alertHistory.filter(history => !history.isRead && !readHistory.has(history.id)).length;
+  const unreadCount = alertHistory.filter(history => !history.is_read && !readHistory.has(history.id)).length;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -94,23 +94,23 @@ export function AlertHistoryDialog({
             </Card>
           ) : (
             alertHistory
-              .sort((a, b) => b.triggeredAt.getTime() - a.triggeredAt.getTime())
+              .sort((a, b) => new Date(b.triggered_at).getTime() - new Date(a.triggered_at).getTime())
               .map((history) => {
-                const isRead = history.isRead || readHistory.has(history.id);
+                const isRead = history.is_read || readHistory.has(history.id);
                 
                 return (
                   <Card key={history.id} className={`transition-all duration-200 ${!isRead ? 'ring-2 ring-primary/20 bg-primary/5' : ''}`}>
                     <CardContent className="p-4">
                       <div className="flex items-start justify-between">
                         <div className="flex items-start gap-3 flex-1">
-                          {getConditionIcon(history.conditionType)}
+                          {getConditionIcon(history.condition_type)}
                           <div className="flex-1">
                             <div className="flex items-center gap-2 mb-2">
-                              <Badge variant={history.conditionType === 'rise' ? 'default' : 'secondary'}>
-                                {getConditionTypeLabel(history.conditionType)} {history.threshold}%
+                              <Badge variant={history.condition_type === 'rise' ? 'default' : 'secondary'}>
+                                {getConditionTypeLabel(history.condition_type)} {history.threshold}%
                               </Badge>
                               <Badge variant="outline" className="text-xs">
-                                {history.period}일간
+                                {history.period_days}일간
                               </Badge>
                               {!isRead && (
                                 <Badge variant="destructive" className="text-xs">
@@ -124,17 +124,17 @@ export function AlertHistoryDialog({
                             <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
                               <div>
                                 <span>기준가:</span>
-                                <span className="ml-1 font-medium">{formatPrice(history.basePrice)}</span>
+                                <span className="ml-1 font-medium">{formatPrice(history.base_price)}</span>
                               </div>
                               <div>
                                 <span>발생가:</span>
-                                <span className="ml-1 font-medium">{formatPrice(history.triggeredPrice)}</span>
+                                <span className="ml-1 font-medium">{formatPrice(history.triggered_price)}</span>
                               </div>
                             </div>
                             
                             <div className="flex items-center gap-1 mt-2 text-xs text-muted-foreground">
                               <Clock className="h-3 w-3" />
-                              {formatDateTime(history.triggeredAt)}
+                              {formatDateTime(new Date(history.triggered_at))}
                             </div>
                           </div>
                         </div>

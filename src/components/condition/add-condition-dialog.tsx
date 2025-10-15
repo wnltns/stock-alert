@@ -46,15 +46,15 @@ export function AddConditionDialog({
 
   const getConditionDescription = () => {
     const typeLabels = {
-      drop: '하락',
       rise: '상승',
+      drop: '하락',
     };
     
     return `${formData.period}일 ${typeLabels[formData.type]} ${formData.threshold}%`;
   };
 
   const getConditionPrice = () => {
-    const multiplier = formData.type.includes('drop') ? (1 - formData.threshold / 100) : (1 + formData.threshold / 100);
+    const multiplier = formData.type === 'drop' ? (1 - formData.threshold / 100) : (1 + formData.threshold / 100);
     return Math.round(stockPrice * multiplier);
   };
 

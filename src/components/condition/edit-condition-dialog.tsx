@@ -23,9 +23,9 @@ export function EditConditionDialog({
   onOpenChange 
 }: EditConditionDialogProps) {
   const [formData, setFormData] = useState<AddConditionFormData>({
-    type: condition.type,
+    type: condition.condition_type,
     threshold: condition.threshold,
-    period: condition.period,
+    period: condition.period_days,
   });
 
   const [errors, setErrors] = useState<Partial<AddConditionFormData>>({});
@@ -54,10 +54,14 @@ export function EditConditionDialog({
 
     const updatedCondition: AlertCondition = {
       ...condition,
-      type: formData.type,
+      condition_type: formData.type,
       threshold: formData.threshold,
-      period: formData.period,
-      basePrice: stockPrice, // 현재 주가로 기준가 업데이트
+      period_days: formData.period,
+      base_price: stockPrice, // 현재 주가로 기준가 업데이트
+      target_price: formData.type === 'drop' 
+        ? Math.round(stockPrice * (1 - formData.threshold / 100))
+        : Math.round(stockPrice * (1 + formData.threshold / 100)),
+      updated_at: new Date().toISOString(),
     };
 
     onEditCondition(updatedCondition);
@@ -72,7 +76,7 @@ export function EditConditionDialog({
   };
 
   const getTargetPrice = () => {
-    return formData.type.includes('drop') 
+    return formData.type === 'drop' 
       ? Math.round(stockPrice * (1 - formData.threshold / 100))
       : Math.round(stockPrice * (1 + formData.threshold / 100));
   };
@@ -93,7 +97,7 @@ export function EditConditionDialog({
             <label className="text-sm font-medium">조건 유형</label>
             <select
               value={formData.type}
-              onChange={(e) => setFormData(prev => ({ ...prev, type: e.target.value as AlertCondition['type'] }))}
+              onChange={(e) => setFormData(prev => ({ ...prev, type: e.target.value as AlertCondition['condition_type'] }))}
               className="w-full p-2 border border-input bg-background rounded-md"
             >
               {getConditionTypeOptions().map(option => (

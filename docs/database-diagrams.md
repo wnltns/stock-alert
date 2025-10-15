@@ -143,7 +143,7 @@ erDiagram
     }
 ```
 
-## 데이터 플로우 다이어그램
+## API 연동 데이터 플로우
 
 ```mermaid
 sequenceDiagram
@@ -151,13 +151,15 @@ sequenceDiagram
     participant A as App
     participant API as API Server
     participant DB as Database
-    participant SP as Stock Price API
+    participant SP as Naver Stock API
     participant FCM as Firebase FCM
     
     Note over U,FCM: 주식 구독 및 조건 설정 플로우
     
     U->>A: 주식 추가
     A->>API: POST /api/subscriptions
+    API->>SP: GET /api/stock/{code}/basic
+    SP-->>API: StockInfo 데이터
     API->>DB: INSERT stock_subscriptions
     
     U->>A: 알림 조건 설정
@@ -168,7 +170,8 @@ sequenceDiagram
     
     loop 매일 오후 6시
         API->>SP: 주가 데이터 조회
-        SP-->>API: 현재 주가 정보
+        SP-->>API: NaverStockApiResponse
+        API->>API: normalizeStockData()
         API->>DB: INSERT stock_prices
         
         API->>DB: SELECT alert_conditions
@@ -184,6 +187,78 @@ sequenceDiagram
             end
         end
     end
+```
+
+## 데이터 변환 플로우
+
+```mermaid
+graph LR
+    subgraph "External API"
+        A[Naver Stock API]
+        B[Raw Response Data]
+    end
+    
+    subgraph "Data Processing"
+        C[parsePrice Function]
+        D[mapMarketStatus Function]
+        E[normalizeStockData Function]
+    end
+    
+    subgraph "App Data Model"
+        F[StockInfo Interface]
+        G[StockDetail Interface]
+    end
+    
+    subgraph "Database"
+        H[stock_subscriptions]
+        I[alert_conditions]
+        J[stock_prices]
+    end
+    
+    A --> B
+    B --> C
+    B --> D
+    C --> E
+    D --> E
+    E --> F
+    F --> G
+    G --> H
+    G --> I
+    F --> J
+```
+
+## 조건 타입 단순화 다이어그램
+
+```mermaid
+graph TD
+    subgraph "이전 구조 (복잡)"
+        A1[daily_drop]
+        A2[daily_rise]
+        A3[period_drop]
+        A4[period_rise]
+    end
+    
+    subgraph "현재 구조 (단순)"
+        B1[rise]
+        B2[drop]
+        B3[period_days 필드]
+    end
+    
+    A1 --> B2
+    A2 --> B1
+    A3 --> B2
+    A4 --> B1
+    
+    B1 --> B3
+    B2 --> B3
+    
+    style A1 fill:#ffcccc
+    style A2 fill:#ffcccc
+    style A3 fill:#ffcccc
+    style A4 fill:#ffcccc
+    style B1 fill:#ccffcc
+    style B2 fill:#ccffcc
+    style B3 fill:#ccffcc
 ```
 
 ## 시스템 컴포넌트 다이어그램

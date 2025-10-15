@@ -81,7 +81,7 @@ CREATE TABLE stock_subscriptions (
 CREATE TABLE alert_conditions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     subscription_id UUID NOT NULL REFERENCES stock_subscriptions(id) ON DELETE CASCADE,
-    condition_type VARCHAR(20) NOT NULL, -- 'daily_drop', 'daily_rise', 'period_drop', 'period_rise'
+    condition_type VARCHAR(10) NOT NULL, -- 'rise', 'drop'
     threshold DECIMAL(5,2) NOT NULL, -- 등락률 (%)
     period_days INTEGER NOT NULL DEFAULT 1, -- 기간 (일)
     base_price DECIMAL(15,2) NOT NULL, -- 기준 가격
@@ -100,7 +100,7 @@ CREATE TABLE alert_conditions (
 ### 필드 설명
 - `id`: 조건 고유 식별자
 - `subscription_id`: 주식 구독 ID (외래키)
-- `condition_type`: 조건 유형
+- `condition_type`: 조건 유형 ('rise': 상승, 'drop': 하락)
 - `threshold`: 등락률 임계값 (%)
 - `period_days`: 조건 적용 기간 (일)
 - `base_price`: 조건 설정 시점 기준 가격
@@ -449,8 +449,8 @@ INSERT INTO stock_subscriptions (user_id, stock_code, stock_name, market, base_p
 ### 알림 조건 데이터
 ```sql
 INSERT INTO alert_conditions (subscription_id, condition_type, threshold, period_days, base_price, target_price) VALUES
-((SELECT id FROM stock_subscriptions WHERE stock_code = '005930'), 'daily_drop', 4.0, 1, 75000, 72000),
-((SELECT id FROM stock_subscriptions WHERE stock_code = '005930'), 'period_rise', 8.0, 3, 75000, 81000);
+((SELECT id FROM stock_subscriptions WHERE stock_code = '005930'), 'drop', 4.0, 1, 75000, 72000),
+((SELECT id FROM stock_subscriptions WHERE stock_code = '005930'), 'rise', 8.0, 3, 75000, 81000);
 ```
 
 ---
