@@ -49,11 +49,20 @@ export function StockCard({ stockCode, stockName, currentPrice, changeRate }: St
 ```
 
 ## Supabase 연동 규칙
-- **클라이언트**: `@supabase/supabase-js` 사용
-- **타입 생성**: `supabase gen types typescript` 명령어로 타입 자동 생성
+- **MCP 도구 필수 사용**: 모든 DB 작업에 Supabase MCP 도구 사용 (`mcp_supabase_execute_sql`, `mcp_supabase_apply_migration`)
+- **실시간 모니터링**: `mcp_supabase_get_logs`로 로그 확인, `mcp_supabase_get_advisors`로 보안 점검
+- **타입 자동 생성**: `mcp_supabase_generate_typescript_types`로 최신 타입 생성
+- **Edge Functions**: `mcp_supabase_deploy_edge_function`으로 서버리스 함수 배포
 - **Row Level Security**: 모든 테이블에 RLS 정책 적용
 - **배치 처리**: Supabase Scheduled Functions를 통한 정기적 주가 조회
 - **에러 처리**: Supabase 에러를 사용자 친화적 메시지로 변환
+
+## API 연동 개발 규칙
+- **실시간 데이터**: 네이버 주식 API와 Supabase DB 직접 연동 필수
+- **데이터 동기화**: API 응답을 Supabase 테이블에 실시간 저장
+- **CRUD 구현**: 모든 주식 구독, 알림 조건, 알림 히스토리 CRUD 작업 구현
+- **트랜잭션 처리**: 데이터 일관성을 위한 트랜잭션 사용
+- **에러 복구**: API 실패 시 재시도 로직 및 폴백 처리
 
 ## 상태 관리
 - **useState**: 간단한 로컬 상태

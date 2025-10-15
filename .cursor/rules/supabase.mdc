@@ -47,8 +47,24 @@ description: "StockAlert 프로젝트의 Supabase 데이터베이스 연동 및 
 - **인증 에러**: 토큰 만료 시 자동 로그아웃
 - **권한 에러**: 접근 권한 없음 시 적절한 페이지로 리다이렉트
 
+## Supabase MCP 사용 규칙
+- **MCP 도구 활용**: 모든 데이터베이스 작업에 Supabase MCP 도구 사용 필수
+- **CRUD 작업**: `mcp_supabase_execute_sql`, `mcp_supabase_apply_migration` 등 MCP 도구로 직접 DB 조작
+- **실시간 모니터링**: `mcp_supabase_get_logs`로 실시간 로그 확인
+- **보안 검사**: `mcp_supabase_get_advisors`로 보안 및 성능 이슈 점검
+- **타입 생성**: `mcp_supabase_generate_typescript_types`로 최신 타입 자동 생성
+- **Edge Functions**: `mcp_supabase_deploy_edge_function`으로 서버리스 함수 배포
+- **브랜치 관리**: 개발 브랜치 생성 및 관리 (`mcp_supabase_create_branch`, `mcp_supabase_merge_branch`)
+
+## API 연동 개발 규칙
+- **실시간 데이터**: 네이버 주식 API와 Supabase DB 연동 필수
+- **데이터 동기화**: API 응답을 Supabase 테이블에 실시간 저장
+- **CRUD 구현**: 모든 주식 구독, 알림 조건, 알림 히스토리 CRUD 작업 구현
+- **트랜잭션 처리**: 데이터 일관성을 위한 트랜잭션 사용
+- **에러 복구**: API 실패 시 재시도 로직 및 폴백 처리
+
 ## 개발 환경 설정
 - **로컬 개발**: Supabase CLI를 통한 로컬 개발 환경
-- **마이그레이션**: 데이터베이스 스키마 변경 관리
-- **시드 데이터**: 개발용 초기 데이터 설정
+- **마이그레이션**: 데이터베이스 스키마 변경 관리 (`mcp_supabase_apply_migration`)
+- **시드 데이터**: 개발용 초기 데이터 설정 (`mcp_supabase_execute_sql`)
 - **테스트**: 단위 테스트 및 통합 테스트 환경
