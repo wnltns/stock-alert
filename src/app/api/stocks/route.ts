@@ -100,7 +100,7 @@ export async function POST(request: NextRequest) {
 
     // 네이버 주식 API 호출하여 주식 정보 가져오기
     let stockName = '';
-    let nationType = 'KOREA';
+    let nationType = 'KOR'; // 데이터베이스 제약 조건에 맞게 기본값 설정
     
     // API 엔드포인트 결정
     const getApiEndpoints = (urlType: string, stockCode: string) => {
@@ -162,7 +162,9 @@ export async function POST(request: NextRequest) {
         
         if (extractedName) {
           stockName = extractedName;
-          nationType = naverData.nationType || (urlType === 'domestic' ? 'KOREA' : 'USA');
+          // 데이터베이스 제약 조건에 맞게 nationType 변환
+          const apiNationType = naverData.nationType || (urlType === 'domestic' ? 'KOR' : 'FOREIGN');
+          nationType = apiNationType === 'KOR' ? 'KOR' : 'FOREIGN';
           apiSuccess = true;
           
           // 성공한 API 정보를 저장
@@ -193,26 +195,35 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 중복 주식 코드 확인
-    const { data: existingStock, error: checkError } = await supabase
-      .from('stock_subscriptions')
-      .select('id')
-      .eq('user_id', user.id)
-      .eq('stock_code', stockCode)
-      .single();
+    // 중복 주식 코드 확인 (특수 문자가 포함된 주식 코드 처리)
+    try {
+      const { data: existingStocks, error: checkError } = await supabase
+        .from('stock_subscriptions')
+        .select('id, stock_code')
+        .eq('user_id', user.id);
 
-    if (checkError && checkError.code !== 'PGRST116') { // PGRST116은 "no rows returned" 에러
-      console.error('중복 확인 중 오류:', checkError);
+      if (checkError) {
+        console.error('중복 확인 중 오류:', checkError);
+        return NextResponse.json(
+          { error: '주식 등록 확인 중 오류가 발생했습니다.' },
+          { status: 500 }
+        );
+      }
+
+      // 클라이언트 사이드에서 중복 확인 (특수 문자 처리 문제 회피)
+      const isDuplicate = existingStocks?.some(stock => stock.stock_code === stockCode);
+      
+      if (isDuplicate) {
+        return NextResponse.json(
+          { error: '이미 등록된 주식 코드입니다.' },
+          { status: 409 }
+        );
+      }
+    } catch (error) {
+      console.error('중복 확인 중 예외 발생:', error);
       return NextResponse.json(
         { error: '주식 등록 확인 중 오류가 발생했습니다.' },
         { status: 500 }
-      );
-    }
-
-    if (existingStock) {
-      return NextResponse.json(
-        { error: '이미 등록된 주식 코드입니다.' },
-        { status: 409 }
       );
     }
 
@@ -255,6 +266,15 @@ export async function POST(request: NextRequest) {
         { error: '주식 등록 중 오류가 발생했습니다.' },
         { status: 500 }
       );
+    }
+
+    // 주식 등록 성공 후 캐시 무효화
+    try {
+      const { invalidateStockPriceCache } = await import('@/lib/stock-cache');
+      await invalidateStockPriceCache();
+      console.log('주식 등록 후 캐시 무효화 완료');
+    } catch (cacheError) {
+      console.warn('캐시 무효화 중 오류 (무시됨):', cacheError);
     }
 
     return NextResponse.json(

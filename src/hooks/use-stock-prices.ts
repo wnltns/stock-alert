@@ -8,6 +8,7 @@ interface UseStockPricesReturn {
   error: string | null;
   cached: boolean;
   invalidateCache: () => Promise<void>;
+  refreshStocks: () => Promise<void>;
 }
 
 export function useStockPrices(): UseStockPricesReturn {
@@ -78,7 +79,7 @@ export function useStockPrices(): UseStockPricesReturn {
 
       const result = await response.json();
       
-      // 캐시 상태 업데이트
+      // 캐시 상태 업데이트 (서버에서 캐시 사용 여부 확인)
       setCached(result.cached || false);
       
       // 알림 조건 데이터도 함께 조회
@@ -137,6 +138,36 @@ export function useStockPrices(): UseStockPricesReturn {
     }
   };
 
+  // 강제 새로고침 함수 (캐시 무시)
+  const refreshStocks = async () => {
+    try {
+      // 서버 사이드 캐시 무효화
+      const response = await fetch('/api/stocks/prices/invalidate', {
+        method: 'POST',
+      });
+      
+      if (response.ok) {
+        // 클라이언트 사이드 캐시 무효화
+        localStorage.removeItem('stock-prices-cache');
+        setCached(false);
+        // 최신 데이터 가져오기
+        await fetchStockPrices();
+      } else {
+        console.error('서버 캐시 무효화 실패');
+        // 서버 캐시 무효화가 실패해도 클라이언트 캐시는 무효화하고 데이터 가져오기
+        localStorage.removeItem('stock-prices-cache');
+        setCached(false);
+        await fetchStockPrices();
+      }
+    } catch (error) {
+      console.error('주식 목록 새로고침 실패:', error);
+      // 에러가 발생해도 클라이언트 캐시는 무효화하고 데이터 가져오기
+      localStorage.removeItem('stock-prices-cache');
+      setCached(false);
+      await fetchStockPrices();
+    }
+  };
+
   useEffect(() => {
     // 먼저 캐시된 데이터 로드 시도
     const hasCachedData = loadCachedData();
@@ -160,5 +191,6 @@ export function useStockPrices(): UseStockPricesReturn {
     error,
     cached,
     invalidateCache,
+    refreshStocks,
   };
 }

@@ -4,40 +4,28 @@
 StockAlert 앱의 데이터베이스 스키마 설계 문서입니다. 주식 구독, 알림 조건, 사용자 관리 등의 핵심 기능을 지원하는 테이블 구조와 관계를 정의합니다.
 
 ## 테이블 목록
-1. **users** - 사용자 정보
+1. **users** - 사용자 정보 (Supabase Auth 연동)
 2. **stock_subscriptions** - 주식 구독 정보
 3. **alert_conditions** - 알림 조건
-4. **notifications** - 알림 발송 기록
-5. **fcm_tokens** - 푸시 알림 토큰 관리
-6. **app_settings** - 앱 설정
+4. **notifications** - 알림 발송 기록 (향후 구현)
+5. **fcm_tokens** - 푸시 알림 토큰 관리 (향후 구현)
+6. **app_settings** - 앱 설정 (향후 구현)
 
 ---
 
 ## 1. users 테이블
-사용자 기본 정보를 저장합니다.
+사용자 기본 정보를 저장합니다. **Supabase Auth와 연동되어 자동으로 관리됩니다.**
 
 ```sql
-CREATE TABLE users (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    email VARCHAR(255) UNIQUE NOT NULL,
-    name VARCHAR(100) NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    is_active BOOLEAN DEFAULT TRUE,
-    last_login_at TIMESTAMP WITH TIME ZONE,
-    timezone VARCHAR(50) DEFAULT 'Asia/Seoul'
-);
+-- Supabase Auth에서 자동 생성되는 테이블
+-- auth.users 테이블을 참조하여 사용자 정보 관리
 ```
 
-### 필드 설명
-- `id`: 사용자 고유 식별자 (UUID)
-- `email`: 이메일 주소 (로그인 ID)
-- `name`: 사용자 이름
-- `created_at`: 계정 생성일
-- `updated_at`: 정보 수정일
-- `is_active`: 계정 활성화 상태
-- `last_login_at`: 마지막 로그인 시간
-- `timezone`: 사용자 시간대
+### 필드 설명 (Supabase Auth 연동)
+- `id`: 사용자 고유 식별자 (UUID) - Supabase Auth에서 제공
+- `email`: 이메일 주소 (로그인 ID) - Supabase Auth에서 제공
+- `created_at`: 계정 생성일 - Supabase Auth에서 제공
+- `updated_at`: 정보 수정일 - Supabase Auth에서 제공
 
 ---
 
@@ -104,13 +92,14 @@ CREATE TABLE alert_conditions (
 
 ---
 
-## 4. notifications 테이블
-알림 발송 기록을 저장합니다.
+## 4. notifications 테이블 (향후 구현)
+알림 발송 기록을 저장합니다. **현재는 구현되지 않았으며, 푸시 알림 기능 구현 시 추가될 예정입니다.**
 
 ```sql
+-- 향후 구현 예정
 CREATE TABLE notifications (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
     subscription_id UUID NOT NULL REFERENCES stock_subscriptions(id) ON DELETE CASCADE,
     condition_id UUID NOT NULL REFERENCES alert_conditions(id) ON DELETE CASCADE,
     notification_type VARCHAR(20) NOT NULL DEFAULT 'push', -- 'push', 'email', 'sms'
@@ -119,16 +108,13 @@ CREATE TABLE notifications (
     sent_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     delivery_status VARCHAR(20) DEFAULT 'pending', -- 'pending', 'sent', 'delivered', 'failed'
     delivery_confirmed_at TIMESTAMP WITH TIME ZONE,
-    error_message TEXT,
-    
-    INDEX idx_user_sent_at (user_id, sent_at),
-    INDEX idx_delivery_status (delivery_status)
+    error_message TEXT
 );
 ```
 
-### 필드 설명
+### 필드 설명 (향후 구현)
 - `id`: 알림 고유 식별자
-- `user_id`: 사용자 ID
+- `user_id`: 사용자 ID (Supabase Auth 연동)
 - `subscription_id`: 주식 구독 ID
 - `condition_id`: 알림 조건 ID
 - `notification_type`: 알림 유형
@@ -141,13 +127,14 @@ CREATE TABLE notifications (
 
 ---
 
-## 5. fcm_tokens 테이블
-Firebase Cloud Messaging 토큰을 관리합니다.
+## 5. fcm_tokens 테이블 (향후 구현)
+Firebase Cloud Messaging 토큰을 관리합니다. **현재는 구현되지 않았으며, 푸시 알림 기능 구현 시 추가될 예정입니다.**
 
 ```sql
+-- 향후 구현 예정
 CREATE TABLE fcm_tokens (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
     token VARCHAR(500) NOT NULL,
     device_type VARCHAR(20) NOT NULL, -- 'web', 'android', 'ios'
     device_info JSONB, -- 디바이스 정보
@@ -160,9 +147,9 @@ CREATE TABLE fcm_tokens (
 );
 ```
 
-### 필드 설명
+### 필드 설명 (향후 구현)
 - `id`: 토큰 고유 식별자
-- `user_id`: 사용자 ID
+- `user_id`: 사용자 ID (Supabase Auth 연동)
 - `token`: FCM 토큰
 - `device_type`: 디바이스 유형
 - `device_info`: 디바이스 정보 (JSON)
@@ -171,13 +158,14 @@ CREATE TABLE fcm_tokens (
 
 ---
 
-## 6. app_settings 테이블
-앱 설정 정보를 저장합니다.
+## 6. app_settings 테이블 (향후 구현)
+앱 설정 정보를 저장합니다. **현재는 구현되지 않았으며, 사용자 설정 기능 구현 시 추가될 예정입니다.**
 
 ```sql
+-- 향후 구현 예정
 CREATE TABLE app_settings (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
     setting_key VARCHAR(50) NOT NULL,
     setting_value TEXT NOT NULL,
     setting_type VARCHAR(20) DEFAULT 'string', -- 'string', 'number', 'boolean', 'json'
@@ -188,14 +176,14 @@ CREATE TABLE app_settings (
 );
 ```
 
-### 필드 설명
+### 필드 설명 (향후 구현)
 - `id`: 설정 고유 식별자
-- `user_id`: 사용자 ID
+- `user_id`: 사용자 ID (Supabase Auth 연동)
 - `setting_key`: 설정 키
 - `setting_value`: 설정 값
 - `setting_type`: 설정 값 타입
 
-### 주요 설정 키
+### 주요 설정 키 (향후 구현)
 - `auto_check_time`: 자동 조회 시간 (기본값: 18)
 - `notification_enabled`: 알림 활성화 여부
 - `email_notifications`: 이메일 알림 여부
@@ -205,28 +193,25 @@ CREATE TABLE app_settings (
 
 ## 데이터베이스 관계도
 
+**현재 구현된 테이블들만 표시됩니다. 향후 구현 예정인 테이블들은 점선으로 표시됩니다.**
+
 ```mermaid
 erDiagram
-    users ||--o{ stock_subscriptions : "구독"
-    users ||--o{ notifications : "알림받음"
-    users ||--o{ fcm_tokens : "토큰보유"
-    users ||--o{ app_settings : "설정보유"
+    auth_users ||--o{ stock_subscriptions : "구독"
+    auth_users ||--o{ notifications : "알림받음(향후)"
+    auth_users ||--o{ fcm_tokens : "토큰보유(향후)"
+    auth_users ||--o{ app_settings : "설정보유(향후)"
     
     stock_subscriptions ||--o{ alert_conditions : "조건설정"
-    stock_subscriptions ||--o{ notifications : "알림발송"
+    stock_subscriptions ||--o{ notifications : "알림발송(향후)"
     
-    alert_conditions ||--o{ notifications : "조건충족"
+    alert_conditions ||--o{ notifications : "조건충족(향후)"
     
-    
-    users {
+    auth_users {
         uuid id PK
         varchar email UK
-        varchar name
         timestamp created_at
         timestamp updated_at
-        boolean is_active
-        timestamp last_login_at
-        varchar timezone
     }
     
     stock_subscriptions {
@@ -253,7 +238,6 @@ erDiagram
         timestamp tracking_started_at
         timestamp tracking_ended_at
     }
-    
     
     notifications {
         uuid id PK
@@ -388,23 +372,32 @@ INSERT INTO alert_conditions (subscription_id, condition_type, threshold, period
 
 ## 마이그레이션 전략
 
-### 1단계: 기본 테이블 생성
-1. users 테이블 생성
-2. stock_subscriptions 테이블 생성
-3. alert_conditions 테이블 생성
+### 현재 구현 상태
+- ✅ **Supabase Auth**: 사용자 인증 시스템 자동 제공
+- ✅ **stock_subscriptions**: 주식 구독 관리 테이블
+- ✅ **alert_conditions**: 알림 조건 설정 테이블
+- ⏳ **notifications**: 알림 발송 기록 (향후 구현)
+- ⏳ **fcm_tokens**: FCM 토큰 관리 (향후 구현)
+- ⏳ **app_settings**: 앱 설정 (향후 구현)
 
-### 2단계: 확장 테이블 생성
-1. notifications 테이블 생성
-2. fcm_tokens 테이블 생성
-3. app_settings 테이블 생성
+### 1단계: 기본 테이블 생성 (완료)
+1. ✅ Supabase Auth 활성화
+2. ✅ stock_subscriptions 테이블 생성
+3. ✅ alert_conditions 테이블 생성
 
-### 3단계: 인덱스 및 제약조건 추가
-1. 성능 최적화 인덱스 생성
-2. 데이터 무결성 제약조건 추가
+### 2단계: 확장 테이블 생성 (향후 구현)
+1. ⏳ notifications 테이블 생성
+2. ⏳ fcm_tokens 테이블 생성
+3. ⏳ app_settings 테이블 생성
 
-### 4단계: 초기 데이터 설정
-1. 기본 설정값 삽입
-2. 테스트 데이터 생성
+### 3단계: 인덱스 및 제약조건 추가 (부분 완료)
+1. ✅ 기본 인덱스 생성
+2. ⏳ 성능 최적화 인덱스 추가 (향후 구현)
+3. ✅ 데이터 무결성 제약조건 추가
+
+### 4단계: 초기 데이터 설정 (향후 구현)
+1. ⏳ 기본 설정값 삽입
+2. ⏳ 테스트 데이터 생성
 
 ---
 

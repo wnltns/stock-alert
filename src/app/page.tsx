@@ -4,18 +4,19 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { StockCard } from '@/components/stock/stock-card';
 import { AddStockDialog } from '@/components/stock/add-stock-dialog';
-import { MOCK_STOCK_DETAILS, MOCK_ALERT_HISTORY } from '@/constants/mock-data';
-import { StockDetail, AddStockFormData, StockSubscription } from '@/types';
+import { StockDetail, AddStockFormData, StockSubscription, Notification } from '@/types';
 import { useAuth } from '@/hooks/use-auth';
 import { useStockPrices } from '@/hooks/use-stock-prices';
 import { AuthGuard } from '@/components/auth/auth-guard';
 import { UserDropdown } from '@/components/auth/user-dropdown';
 import { CacheInvalidateButton } from '@/components/ui/cache-invalidate-button';
 import { supabase } from '@/lib/supabase/client';
+import { Button } from '@/components/ui/button';
+import { Play } from 'lucide-react';
 
 export default function Home() {
   const router = useRouter();
-  const [stocks, setStocks] = useState<StockDetail[]>(MOCK_STOCK_DETAILS);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
   const { user } = useAuth();
   
   // 실시간 주가 데이터를 가져오는 훅 사용
@@ -24,14 +25,41 @@ export default function Home() {
     loading, 
     error, 
     cached,
-    invalidateCache
+    invalidateCache,
+    refreshStocks
   } = useStockPrices();
 
-  const handleAddStock = (data: AddStockFormData) => {
+  // notification 데이터 가져오기
+  useEffect(() => {
+    const fetchNotifications = async () => {
+      if (!user) return;
+      
+      try {
+        const { data, error } = await supabase
+          .from('notifications')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false });
+        
+        if (error) {
+          console.error('알림 데이터 가져오기 실패:', error);
+          return;
+        }
+        
+        setNotifications(data || []);
+      } catch (error) {
+        console.error('알림 데이터 가져오기 오류:', error);
+      }
+    };
+
+    fetchNotifications();
+  }, [user]);
+
+  const handleAddStock = async (data: AddStockFormData) => {
     // 주식 등록 완료
     console.log('주식 등록 완료:', data);
-    // 페이지 새로고침으로 최신 데이터 표시
-    window.location.reload();
+    // 캐시 무효화하여 최신 데이터 표시
+    await refreshStocks();
   };
 
   const handleViewDetails = (stockId: string) => {
@@ -45,6 +73,42 @@ export default function Home() {
 
   const handleCacheInvalidate = async () => {
     await invalidateCache();
+  };
+
+  const handleTestMonitoring = async () => {
+    try {
+      // 현재 사용자의 세션 가져오기
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      
+      if (sessionError || !session?.access_token) {
+        alert('인증이 필요합니다.');
+        return;
+      }
+
+      const response = await fetch('/api/test-monitoring', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          testMode: false, // 실제 DB 사용
+          forceCheck: true, // 시간 제한 우회
+          nationType: 'KOR' // 기본적으로 국내 주식 테스트
+        }),
+      });
+
+      const result = await response.json();
+      
+      if (result.success) {
+        alert(`모니터링 완료!\n처리된 구독: ${result.results.processed}개\n알림 발송: ${result.results.notificationsSent}개`);
+      } else {
+        alert(`모니터링 실패: ${result.error || result.message}`);
+      }
+    } catch (error) {
+      console.error('모니터링 오류:', error);
+      alert('모니터링 중 오류가 발생했습니다.');
+    }
   };
 
   return (
@@ -70,46 +134,37 @@ export default function Home() {
               <AddStockDialog onAddStock={handleAddStock} />
             </div>
             
-            {/* 목업 데이터 섹션 */}
-            {stocks.length > 0 && (
-              <div className="mb-8">
-                <h2 className="text-2xl font-semibold mb-4 text-muted-foreground">
-                  샘플 데이터
-                </h2>
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 items-stretch">
-                  {stocks.map((stock) => {
-                    const stockAlertHistory = MOCK_ALERT_HISTORY.filter(
-                      history => history.subscription_id === stock.subscription.id
-                    );
-                    
-                    return (
-                      <StockCard
-                        key={stock.subscription.id}
-                        stock={stock}
-                        onViewDetails={handleViewDetails}
-                        onAddCondition={handleAddCondition}
-                        alertHistory={stockAlertHistory}
-                      />
-                    );
-                  })}
-                </div>
-              </div>
-            )}
 
-            {/* 실제 데이터 섹션 */}
             <div className="mb-8">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-2xl font-semibold">
-                  내 주식 구독
+                  주식 구독
                 </h2>
-                {cached && (
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded">
-                      캐시됨
-                    </span>
-                    <CacheInvalidateButton onInvalidate={handleCacheInvalidate} />
-                  </div>
-                )}
+                <div className="flex items-center gap-2">
+                  {cached && (
+                    <>
+                      <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded">
+                        캐시됨
+                      </span>
+                      <CacheInvalidateButton onInvalidate={handleCacheInvalidate} />
+                    </>
+                  )}
+                  
+                  {/* 개발자 테스트 버튼 */}
+                  {process.env.NODE_ENV === 'development' && (
+                    <div className="flex items-center gap-2 ml-4">
+                      <Button
+                        variant="default"
+                        size="sm"
+                        onClick={handleTestMonitoring}
+                        className="text-xs"
+                      >
+                        <Play className="w-3 h-3 mr-1" />
+                        테스트
+                      </Button>
+                    </div>
+                  )}
+                </div>
               </div>
               
               {error ? (
@@ -128,21 +183,21 @@ export default function Home() {
                   <p className="text-muted-foreground mb-4">
                     아직 구독된 주식이 없습니다. 주식을 추가해보세요!
                   </p>
+                  <div className="flex justify-center">
+                    <CacheInvalidateButton onInvalidate={handleCacheInvalidate} />
+                  </div>
                 </div>
               ) : (
                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 items-stretch">
                   {realStocks.map((stock) => {
-                    const stockAlertHistory = MOCK_ALERT_HISTORY.filter(
-                      history => history.subscription_id === stock.subscription.id
-                    );
-                    
                     return (
                       <StockCard
                         key={stock.subscription.id}
                         stock={stock}
                         onViewDetails={handleViewDetails}
                         onAddCondition={handleAddCondition}
-                        alertHistory={stockAlertHistory}
+                        alertHistory={[]}
+                        notifications={notifications}
                       />
                     );
                   })}

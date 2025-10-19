@@ -513,7 +513,19 @@ export default function ConditionManagementPage() {
                             <div className="text-xs sm:text-sm text-muted-foreground mt-1">
                               {condition.tracking_started_at && condition.tracking_ended_at ? (
                                 <>
-                                  추적일: {new Date(condition.tracking_started_at).toLocaleDateString('ko-KR', { month: '2-digit', day: '2-digit' })} ~ {new Date(condition.tracking_ended_at).toLocaleDateString('ko-KR', { month: '2-digit', day: '2-digit' })}
+                                  <div className="block sm:hidden">
+                                    <div>추적일: {new Date(condition.tracking_started_at).toLocaleDateString('ko-KR', { month: '2-digit', day: '2-digit' })} ~ {new Date(condition.tracking_ended_at).toLocaleDateString('ko-KR', { month: '2-digit', day: '2-digit' })}</div>
+                                    <div>
+                                      누적 변동률: <span className={condition.cumulative_change_rate >= 0 ? 'text-green-600' : 'text-red-600'}>{condition.cumulative_change_rate.toFixed(2)}%</span>
+                                    </div>
+                                  </div>
+                                  <div className="hidden sm:block">
+                                    추적일: {new Date(condition.tracking_started_at).toLocaleDateString('ko-KR', { month: '2-digit', day: '2-digit' })} ~ {new Date(condition.tracking_ended_at).toLocaleDateString('ko-KR', { month: '2-digit', day: '2-digit' })}
+                                    <span className="mx-2 text-muted-foreground">•</span>
+                                    <span>
+                                      누적 변동률: <span className={condition.cumulative_change_rate >= 0 ? 'text-green-600' : 'text-red-600'}>{condition.cumulative_change_rate.toFixed(2)}%</span>
+                                    </span>
+                                  </div>
                                 </>
                               ) : (
                                 <>

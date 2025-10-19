@@ -2,63 +2,62 @@
 
 ## 전체 시스템 아키텍처
 
+**현재 구현된 기능들만 표시됩니다. 향후 구현 예정인 기능들은 점선으로 표시됩니다.**
+
 ```mermaid
 graph TB
     subgraph "Frontend"
         A[React/Next.js App]
-        B[PWA Service Worker]
+        B[PWA Service Worker - 향후 구현]
     end
     
     subgraph "Backend API"
         C[Next.js API Routes]
-        D[Supabase Edge Functions]
+        D[Supabase Edge Functions - 향후 구현]
     end
     
     subgraph "Database"
         E[(PostgreSQL)]
-        F[Real-time Subscriptions]
+        F[Real-time Subscriptions - 향후 구현]
     end
     
     subgraph "External Services"
         G[Stock Price API]
-        H[Firebase Cloud Messaging]
+        H[Firebase Cloud Messaging - 향후 구현]
     end
     
     A --> C
-    A --> D
-    B --> H
+    A -.-> D
+    B -.-> H
     C --> E
-    D --> E
-    D --> G
-    D --> H
-    E --> F
-    F --> A
+    D -.-> E
+    D -.-> G
+    D -.-> H
+    E -.-> F
+    F -.-> A
 ```
 
 ## 데이터베이스 테이블 관계도
 
+**현재 구현된 테이블들만 표시됩니다. 향후 구현 예정인 테이블들은 점선으로 표시됩니다.**
+
 ```mermaid
 erDiagram
-    users ||--o{ stock_subscriptions : "구독"
-    users ||--o{ notifications : "알림받음"
-    users ||--o{ fcm_tokens : "토큰보유"
-    users ||--o{ app_settings : "설정보유"
+    auth_users ||--o{ stock_subscriptions : "구독"
+    auth_users ||--o{ notifications : "알림받음(향후)"
+    auth_users ||--o{ fcm_tokens : "토큰보유(향후)"
+    auth_users ||--o{ app_settings : "설정보유(향후)"
     
     stock_subscriptions ||--o{ alert_conditions : "조건설정"
-    stock_subscriptions ||--o{ notifications : "알림발송"
+    stock_subscriptions ||--o{ notifications : "알림발송(향후)"
     
-    alert_conditions ||--o{ notifications : "조건충족"
+    alert_conditions ||--o{ notifications : "조건충족(향후)"
     
-    
-    users {
+    auth_users {
         uuid id PK
         varchar email UK
-        varchar name
         timestamp created_at
         timestamp updated_at
-        boolean is_active
-        timestamp last_login_at
-        varchar timezone
     }
     
     stock_subscriptions {
@@ -82,9 +81,9 @@ erDiagram
         timestamp created_at
         timestamp updated_at
         timestamp last_checked_at
-        timestamp condition_met_at
+        timestamp tracking_started_at
+        timestamp tracking_ended_at
     }
-    
     
     notifications {
         uuid id PK
@@ -125,6 +124,8 @@ erDiagram
 
 ## API 연동 데이터 플로우
 
+**현재 구현된 기능들만 표시됩니다. 향후 구현 예정인 기능들은 점선으로 표시됩니다.**
+
 ```mermaid
 sequenceDiagram
     participant U as User
@@ -132,12 +133,12 @@ sequenceDiagram
     participant API as API Server
     participant DB as Database
     participant SP as Naver Stock API
-    participant FCM as Firebase FCM
+    participant FCM as Firebase FCM - 향후 구현
     
-    Note over U,FCM: 주식 구독 및 조건 설정 플로우
+    Note over U,FCM: 주식 구독 및 조건 설정 플로우 (현재 구현됨)
     
     U->>A: 주식 추가
-    A->>API: POST /api/subscriptions
+    A->>API: POST /api/stocks
     API->>SP: GET /api/stock/{code}/basic
     SP-->>API: StockInfo 데이터
     API->>DB: INSERT stock_subscriptions
@@ -146,9 +147,9 @@ sequenceDiagram
     A->>API: POST /api/conditions
     API->>DB: INSERT alert_conditions
     
-    Note over U,FCM: 자동 주가 체크 및 알림 플로우
+    Note over U,FCM: 자동 주가 체크 및 알림 플로우 (향후 구현)
     
-    loop 매일 오후 6시
+    loop 매일 정기적으로 - 향후 구현
         API->>SP: 주가 데이터 조회
         SP-->>API: NaverStockApiResponse
         API->>API: normalizeStockData()
@@ -156,10 +157,10 @@ sequenceDiagram
         API->>DB: SELECT alert_conditions
         DB-->>API: 활성 조건 목록
         
-        loop 각 조건 체크
+        loop 각 조건 체크 - 향후 구현
             API->>API: 조건 충족 여부 계산
             
-            alt 조건 충족
+            alt 조건 충족 - 향후 구현
                 API->>DB: INSERT notifications
                 API->>FCM: 푸시 알림 발송
                 FCM-->>U: 알림 수신

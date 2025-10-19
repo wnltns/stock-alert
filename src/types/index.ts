@@ -183,6 +183,108 @@ export type Database = {
           },
         ]
       }
+      fcm_tokens: {
+        Row: {
+          created_at: string | null
+          device_info: Json | null
+          device_type: string
+          id: string
+          is_active: boolean | null
+          last_used_at: string | null
+          token: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          device_info?: Json | null
+          device_type: string
+          id?: string
+          is_active?: boolean | null
+          last_used_at?: string | null
+          token: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          device_info?: Json | null
+          device_type?: string
+          id?: string
+          is_active?: boolean | null
+          last_used_at?: string | null
+          token?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fcm_tokens_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notifications: {
+        Row: {
+          condition_id: string
+          created_at: string | null
+          cumulative_change_rate: number
+          delivery_confirmed_at: boolean | null
+          id: string
+          sent_at: string | null
+          subscription_id: string
+          triggered_price: number
+          user_id: string
+        }
+        Insert: {
+          condition_id: string
+          created_at?: string | null
+          cumulative_change_rate?: number
+          delivery_confirmed_at?: boolean | null
+          id?: string
+          sent_at?: string | null
+          subscription_id: string
+          triggered_price: number
+          user_id: string
+        }
+        Update: {
+          condition_id?: string
+          created_at?: string | null
+          cumulative_change_rate?: number
+          delivery_confirmed_at?: boolean | null
+          id?: string
+          sent_at?: string | null
+          subscription_id?: string
+          triggered_price?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notifications_condition_id_fkey"
+            columns: ["condition_id"]
+            isOneToOne: false
+            referencedRelation: "alert_conditions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notifications_subscription_id_fkey"
+            columns: ["subscription_id"]
+            isOneToOne: false
+            referencedRelation: "stock_subscriptions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notifications_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       stock_subscriptions: {
         Row: {
           api_info: Json | null
@@ -283,16 +385,22 @@ export type Database = {
 export type User = Database['public']['Tables']['users']['Row'];
 export type StockSubscription = Database['public']['Tables']['stock_subscriptions']['Row'];
 export type AlertCondition = Database['public']['Tables']['alert_conditions']['Row'];
+export type Notification = Database['public']['Tables']['notifications']['Row'];
+export type FcmToken = Database['public']['Tables']['fcm_tokens']['Row'];
 
 // Insert 타입들
 export type UserInsert = Database['public']['Tables']['users']['Insert'];
 export type StockSubscriptionInsert = Database['public']['Tables']['stock_subscriptions']['Insert'];
 export type AlertConditionInsert = Database['public']['Tables']['alert_conditions']['Insert'];
+export type NotificationInsert = Database['public']['Tables']['notifications']['Insert'];
+export type FcmTokenInsert = Database['public']['Tables']['fcm_tokens']['Insert'];
 
 // Update 타입들
 export type UserUpdate = Database['public']['Tables']['users']['Update'];
 export type StockSubscriptionUpdate = Database['public']['Tables']['stock_subscriptions']['Update'];
 export type AlertConditionUpdate = Database['public']['Tables']['alert_conditions']['Update'];
+export type NotificationUpdate = Database['public']['Tables']['notifications']['Update'];
+export type FcmTokenUpdate = Database['public']['Tables']['fcm_tokens']['Update'];
 
 // 주식 상세 정보 (구독 + 주가 + 조건들)
 export interface StockDetail {
@@ -324,6 +432,7 @@ export interface AlertHistory {
   threshold: number;
   period_days: number;
   triggered_price: number;
+  cumulative_change_rate: number;
   triggered_at: string;
   message: string;
   is_read: boolean;
@@ -343,6 +452,11 @@ export const MIN_THRESHOLD = 0.1; // 최소 0.1%
 export const MAX_THRESHOLD = 100; // 최대 100%
 export const MIN_PERIOD = 1; // 최소 1일
 export const MAX_PERIOD = 30; // 최대 30일
+
+// 모니터링 관련 상수 (PRD에 명시된 시간)
+export const KOREAN_MARKET_CHECK_TIME = "09:00"; // 국내 주식 모니터링 시간 (KST)
+export const FOREIGN_MARKET_CHECK_TIME = "23:00"; // 해외 주식 모니터링 시간 (KST)
+export const MONITORING_TIMEZONE = "Asia/Seoul"; // 모니터링 기준 시간대
 
 // 조건 타입 매핑
 export const CONDITION_TYPE_LABELS = {

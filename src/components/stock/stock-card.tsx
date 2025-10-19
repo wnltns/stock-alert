@@ -2,7 +2,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
-import { StockDetail, AlertHistory } from '@/types';
+import { StockDetail, AlertHistory, Notification } from '@/types';
 import { AlertHistoryDialog } from './alert-history-dialog';
 import { useState } from 'react';
 
@@ -11,9 +11,10 @@ interface StockCardProps {
   onViewDetails: (stockId: string) => void;
   onAddCondition: (stockId: string) => void;
   alertHistory?: AlertHistory[];
+  notifications?: Notification[];
 }
 
-export function StockCard({ stock, onViewDetails, onAddCondition, alertHistory = [] }: StockCardProps) {
+export function StockCard({ stock, onViewDetails, onAddCondition, alertHistory = [], notifications = [] }: StockCardProps) {
   const { subscription, stockInfo, conditions } = stock;
   const [isHistoryDialogOpen, setIsHistoryDialogOpen] = useState(false);
   
@@ -50,14 +51,47 @@ export function StockCard({ stock, onViewDetails, onAddCondition, alertHistory =
   const isConditionMet = (condition: any) => {
     if (!condition.is_active) return false;
     
-    // 실제 조건 충족 로직 구현
-    // 현재는 단순히 활성 상태만 확인하지만, 실제로는 주가 변화율과 비교해야 함
-    // 예시: 상승 조건의 경우 현재 주가가 임계값 이상 상승했는지 확인
-    // 예시: 하락 조건의 경우 현재 주가가 임계값 이상 하락했는지 확인
+    // 오늘 날짜 확인 (UTC 기준)
+    const today = new Date();
+    const todayStart = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()));
+    const todayEnd = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate() + 1));
     
-    // 임시 로직: 활성 상태인 조건을 모두 충족된 것으로 표시
-    // 실제 구현에서는 주가 히스토리와 비교하여 정확한 충족 여부를 판단해야 함
-    return condition.is_active;
+    // 해당 조건에 대해 notification 테이블에서 오늘 생성된 컬럼이 있는지 확인
+    const hasNotificationToday = notifications.some(notification => {
+      // 조건 ID가 일치하는지 확인
+      if (notification.condition_id !== condition.id) return false;
+      
+      // 오늘 생성된 알림인지 확인
+      const notificationDate = new Date(notification.created_at || notification.sent_at || '');
+      const isToday = notificationDate >= todayStart && notificationDate < todayEnd;
+      
+      // 디버깅을 위한 로그 (개발 환경에서만)
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`조건 확인: ${condition.id}`, {
+          conditionType: condition.condition_type,
+          threshold: condition.threshold,
+          notificationId: notification.id,
+          notificationDate: notificationDate.toISOString(),
+          todayStart: todayStart.toISOString(),
+          todayEnd: todayEnd.toISOString(),
+          isToday: isToday
+        });
+      }
+      
+      return isToday;
+    });
+    
+    // 디버깅을 위한 로그 (개발 환경에서만)
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`조건 ${condition.id} 최종 결과:`, {
+        conditionType: condition.condition_type,
+        threshold: condition.threshold,
+        hasNotificationToday: hasNotificationToday,
+        notificationsCount: notifications.filter(n => n.condition_id === condition.id).length
+      });
+    }
+    
+    return hasNotificationToday;
   };
 
   return (
@@ -155,6 +189,7 @@ export function StockCard({ stock, onViewDetails, onAddCondition, alertHistory =
       <AlertHistoryDialog
         stockName={subscription.stock_name}
         stockCode={subscription.stock_code}
+        subscriptionId={subscription.id}
         alertHistory={alertHistory}
         open={isHistoryDialogOpen}
         onOpenChange={setIsHistoryDialogOpen}
