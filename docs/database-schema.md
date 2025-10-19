@@ -83,7 +83,8 @@ CREATE TABLE alert_conditions (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     last_checked_at TIMESTAMP WITH TIME ZONE,
-    condition_met_at TIMESTAMP WITH TIME ZONE, -- 조건 충족 시점
+    tracking_started_at TIMESTAMP WITH TIME ZONE, -- 추적 시작일
+    tracking_ended_at TIMESTAMP WITH TIME ZONE, -- 추적 종료일
     
     CHECK (threshold > 0 AND threshold <= 100),
     CHECK (period_days > 0 AND period_days <= 30)
@@ -98,7 +99,8 @@ CREATE TABLE alert_conditions (
 - `period_days`: 조건 적용 기간 (일)
 - `is_active`: 조건 활성화 상태
 - `last_checked_at`: 마지막 조건 체크 시간
-- `condition_met_at`: 조건 충족 시점
+- `tracking_started_at`: 추적 시작일 (조건 등록/수정/초기화 시점)
+- `tracking_ended_at`: 추적 종료일 (tracking_started_at + period_days)
 
 ---
 
@@ -248,7 +250,8 @@ erDiagram
         timestamp created_at
         timestamp updated_at
         timestamp last_checked_at
-        timestamp condition_met_at
+        timestamp tracking_started_at
+        timestamp tracking_ended_at
     }
     
     
@@ -310,7 +313,8 @@ CREATE INDEX idx_subscriptions_user_stock ON stock_subscriptions(user_id, stock_
 CREATE INDEX idx_conditions_subscription_id ON alert_conditions(subscription_id);
 CREATE INDEX idx_conditions_active ON alert_conditions(is_active);
 CREATE INDEX idx_conditions_last_checked ON alert_conditions(last_checked_at);
-CREATE INDEX idx_conditions_met_at ON alert_conditions(condition_met_at);
+CREATE INDEX idx_conditions_tracking_started ON alert_conditions(tracking_started_at);
+CREATE INDEX idx_conditions_tracking_ended ON alert_conditions(tracking_ended_at);
 
 
 -- 알림 관련 인덱스

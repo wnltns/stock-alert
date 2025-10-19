@@ -65,6 +65,11 @@ export function AddConditionDialog({
       // 조건 타입을 DB 형식으로 변환 (데이터베이스 제약조건에 맞게 수정)
       const conditionType = formData.type === 'drop' ? 'drop' : 'rise';
       
+      // 현재 날짜를 기준으로 추적 시작일과 종료일 계산
+      const now = new Date();
+      const trackingStartedAt = now.toISOString();
+      const trackingEndedAt = new Date(now.getTime() + formData.period * 24 * 60 * 60 * 1000).toISOString();
+      
       // DB에 저장할 데이터 준비
       const conditionData: AlertConditionInsert = {
         subscription_id: subscriptionId,
@@ -72,6 +77,8 @@ export function AddConditionDialog({
         threshold: formData.threshold,
         period_days: formData.period,
         is_active: true,
+        tracking_started_at: trackingStartedAt,
+        tracking_ended_at: trackingEndedAt,
       };
 
       // Supabase에 조건 저장

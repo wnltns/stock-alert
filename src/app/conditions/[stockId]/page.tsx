@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
-import { ArrowLeft, Plus, Edit, Trash2, TrendingUp, TrendingDown, RotateCcw } from 'lucide-react';
+import { ArrowLeft, Plus, Edit, Trash2, TrendingUp, TrendingDown, RotateCcw, RotateCcwSquare } from 'lucide-react';
 import { MOCK_STOCK_DETAILS } from '@/constants/mock-data';
 import { StockDetail, AlertCondition, AddConditionFormData, StockSubscription } from '@/types';
 import { AddConditionDialog } from '@/components/condition/add-condition-dialog';
@@ -138,6 +138,8 @@ export default function ConditionManagementPage() {
           condition_type: updatedCondition.condition_type,
           threshold: updatedCondition.threshold,
           period_days: updatedCondition.period_days,
+          tracking_started_at: updatedCondition.tracking_started_at,
+          tracking_ended_at: updatedCondition.tracking_ended_at,
           updated_at: new Date().toISOString(),
         })
         .eq('id', updatedCondition.id)
@@ -245,25 +247,113 @@ export default function ConditionManagementPage() {
     });
   };
 
+  const handleResetAllConditionTracking = () => {
+    if (!stock || stock.conditions.length === 0) return;
+    
+    showConfirm({
+      title: '전체 초기화',
+      description: '모든 조건의 추적일을 초기화하시겠습니까? 모든 조건의 추적 시작일과 종료일이 현재 시점 기준으로 다시 계산됩니다.',
+      confirmText: '확인',
+      cancelText: '취소',
+      variant: 'destructive',
+      onConfirm: async () => {
+        if (!user || !stock) return;
+
+        try {
+          const now = new Date();
+          
+          // 모든 조건의 추적일을 한번에 업데이트
+          const updatePromises = stock.conditions.map(condition => {
+            const trackingStartedAt = now.toISOString();
+            const trackingEndedAt = new Date(now.getTime() + condition.period_days * 24 * 60 * 60 * 1000).toISOString();
+            
+            return supabase
+              .from('alert_conditions')
+              .update({
+                tracking_started_at: trackingStartedAt,
+                tracking_ended_at: trackingEndedAt,
+                updated_at: new Date().toISOString(),
+              })
+              .eq('id', condition.id)
+              .select()
+              .single();
+          });
+
+          const results = await Promise.all(updatePromises);
+          
+          // 에러가 있는지 확인
+          const hasError = results.some(result => result.error);
+          if (hasError) {
+            console.error('일부 조건 초기화 오류 발생');
+            return;
+          }
+
+          // 로컬 상태 업데이트
+          const updatedConditions = results.map(result => result.data).filter(Boolean);
+          setStock(prev => prev ? {
+            ...prev,
+            conditions: prev.conditions.map(condition => {
+              const updated = updatedConditions.find(updated => updated && updated.id === condition.id);
+              return updated ? { ...condition, ...updated } : condition;
+            })
+          } : null);
+
+        } catch (error) {
+          console.error('전체 조건 초기화 중 오류 발생:', error);
+        }
+      },
+    });
+  };
+
   const handleResetConditionTracking = (conditionId: string) => {
     const condition = stock?.conditions.find(c => c.id === conditionId);
     const conditionType = condition ? getConditionTypeLabel(condition.condition_type) : '';
     
     showConfirm({
       title: '초기화',
-      description: '추적일을 초기화하시겠습니까?',
+      description: '추적일을 초기화하시겠습니까? 추적 시작일과 종료일이 현재 시점 기준으로 다시 계산됩니다.',
       confirmText: '확인',
       cancelText: '취소',
       variant: 'destructive',
-      onConfirm: () => {
-        setStock(prev => prev ? {
-          ...prev,
-          conditions: prev.conditions.map(condition => 
-            condition.id === conditionId 
-              ? { ...condition, created_at: new Date().toISOString(), updated_at: new Date().toISOString() }
-              : condition
-          )
-        } : null);
+      onConfirm: async () => {
+        if (!user || !condition) return;
+
+        try {
+          // 현재 날짜를 기준으로 추적 시작일과 종료일 재계산
+          const now = new Date();
+          const trackingStartedAt = now.toISOString();
+          const trackingEndedAt = new Date(now.getTime() + condition.period_days * 24 * 60 * 60 * 1000).toISOString();
+
+          // Supabase에 조건 업데이트
+          const { data, error } = await supabase
+            .from('alert_conditions')
+            .update({
+              tracking_started_at: trackingStartedAt,
+              tracking_ended_at: trackingEndedAt,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', conditionId)
+            .select()
+            .single();
+
+          if (error) {
+            console.error('조건 초기화 오류:', error);
+            return;
+          }
+
+          // 로컬 상태 업데이트
+          setStock(prev => prev ? {
+            ...prev,
+            conditions: prev.conditions.map(condition => 
+              condition.id === conditionId 
+                ? { ...condition, ...data }
+                : condition
+            )
+          } : null);
+
+        } catch (error) {
+          console.error('조건 초기화 중 오류 발생:', error);
+        }
       },
     });
   };
@@ -339,13 +429,13 @@ export default function ConditionManagementPage() {
               
               {/* 주식 정보 헤더 */}
               <div className="mb-8">
-                <div className="flex items-start justify-between mb-4">
+                <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 mb-4">
                   <div className="flex-1 min-w-0">
-                    <h1 className="text-3xl font-bold mb-2 truncate">
+                    <h1 className="text-2xl sm:text-3xl font-bold mb-2 truncate">
                       {stock.subscription.stock_name}
                     </h1>
-                    <div className="flex items-center gap-3 mb-4">
-                      <span className="text-muted-foreground text-lg">
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 mb-4">
+                      <span className="text-muted-foreground text-base sm:text-lg">
                         {stock.subscription.stock_code}
                       </span>
                       <div className="flex items-center gap-2">
@@ -362,11 +452,27 @@ export default function ConditionManagementPage() {
                       </span>
                     </div>
                   </div>
-                  <div className="flex-shrink-0 ml-6">
-                    <Button onClick={() => setIsAddDialogOpen(true)} className="gap-2">
-                      <Plus className="h-4 w-4" />
-                      조건 추가
-                    </Button>
+                  <div className="flex-shrink-0">
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      {stock.conditions.length > 0 && (
+                        <Button 
+                          variant="outline" 
+                          onClick={handleResetAllConditionTracking}
+                          className="gap-2 w-full sm:w-auto"
+                        >
+                          <RotateCcwSquare className="h-4 w-4" />
+                          <span className="hidden sm:inline">전체 초기화</span>
+                          <span className="sm:hidden">전체 초기화</span>
+                        </Button>
+                      )}
+                      <Button 
+                        onClick={() => setIsAddDialogOpen(true)} 
+                        className="gap-2 w-full sm:w-auto"
+                      >
+                        <Plus className="h-4 w-4" />
+                        조건 추가
+                      </Button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -388,25 +494,33 @@ export default function ConditionManagementPage() {
                 
                 return (
                   <Card key={condition.id} className="transition-all duration-300 hover:shadow-lg">
-                    <CardContent className="p-4">
-                      <div className="flex items-center justify-between">
+                    <CardContent className="p-3 sm:p-4">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                         <div className="flex items-center gap-3 flex-1 min-w-0">
                           {getConditionIcon(condition.condition_type)}
                           <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                              <span className="font-medium text-base">
+                            <div className="flex items-center gap-1 sm:gap-2">
+                              <span className="font-medium text-sm sm:text-base">
                                 {getConditionTypeLabel(condition.condition_type)} {condition.threshold}%
                               </span>
-                              <Badge variant="outline" className="text-xs">
+                              <Badge variant="outline" className="text-xs w-fit">
                                 {condition.period_days}일
                               </Badge>
                             </div>
-                            <div className="text-sm text-muted-foreground mt-1">
-                              {condition.created_at ? new Date(condition.created_at).toLocaleDateString('ko-KR') : '날짜 없음'} 설정
+                            <div className="text-xs sm:text-sm text-muted-foreground mt-1">
+                              {condition.tracking_started_at && condition.tracking_ended_at ? (
+                                <>
+                                  추적일: {new Date(condition.tracking_started_at).toLocaleDateString('ko-KR', { month: '2-digit', day: '2-digit' })} ~ {new Date(condition.tracking_ended_at).toLocaleDateString('ko-KR', { month: '2-digit', day: '2-digit' })}
+                                </>
+                              ) : (
+                                <>
+                                  {condition.created_at ? new Date(condition.created_at).toLocaleDateString('ko-KR', { month: '2-digit', day: '2-digit' }) : '날짜 없음'} 설정
+                                </>
+                              )}
                             </div>
                           </div>
                         </div>
-                        <div className="flex items-center gap-2 flex-shrink-0">
+                        <div className="flex items-center justify-between sm:justify-end gap-2 flex-shrink-0">
                           <Badge variant={isMet ? "default" : "outline"} className={isMet ? "bg-green-500" : ""}>
                             {isMet ? "충족" : "대기"}
                           </Badge>
@@ -415,25 +529,25 @@ export default function ConditionManagementPage() {
                               variant="ghost" 
                               size="sm"
                               onClick={() => setEditingCondition(condition)}
-                              className="h-8 w-8 p-0"
+                              className="h-7 w-7 sm:h-8 sm:w-8 p-0"
                             >
-                              <Edit className="h-4 w-4" />
+                              <Edit className="h-3 w-3 sm:h-4 sm:w-4" />
                             </Button>
                             <Button 
                               variant="ghost" 
                               size="sm"
                               onClick={() => handleResetConditionTracking(condition.id)}
-                              className="h-8 w-8 p-0"
+                              className="h-7 w-7 sm:h-8 sm:w-8 p-0"
                             >
-                              <RotateCcw className="h-4 w-4" />
+                              <RotateCcw className="h-3 w-3 sm:h-4 sm:w-4" />
                             </Button>
                             <Button 
                               variant="ghost" 
                               size="sm"
                               onClick={() => handleDeleteCondition(condition.id)}
-                              className="h-8 w-8 p-0 text-red-600 hover:text-red-700"
+                              className="h-7 w-7 sm:h-8 sm:w-8 p-0 text-red-600 hover:text-red-700"
                             >
-                              <Trash2 className="h-4 w-4" />
+                              <Trash2 className="h-3 w-3 sm:h-4 sm:w-4" />
                             </Button>
                           </div>
                         </div>

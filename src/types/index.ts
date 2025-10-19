@@ -132,7 +132,6 @@ export type Database = {
     Tables: {
       alert_conditions: {
         Row: {
-          condition_met_at: string | null
           condition_type: string
           created_at: string | null
           id: string
@@ -141,10 +140,11 @@ export type Database = {
           period_days: number
           subscription_id: string
           threshold: number
+          tracking_ended_at: string | null
+          tracking_started_at: string | null
           updated_at: string | null
         }
         Insert: {
-          condition_met_at?: string | null
           condition_type: string
           created_at?: string | null
           id?: string
@@ -153,10 +153,11 @@ export type Database = {
           period_days?: number
           subscription_id: string
           threshold: number
+          tracking_ended_at?: string | null
+          tracking_started_at?: string | null
           updated_at?: string | null
         }
         Update: {
-          condition_met_at?: string | null
           condition_type?: string
           created_at?: string | null
           id?: string
@@ -165,6 +166,8 @@ export type Database = {
           period_days?: number
           subscription_id?: string
           threshold?: number
+          tracking_ended_at?: string | null
+          tracking_started_at?: string | null
           updated_at?: string | null
         }
         Relationships: [

@@ -55,12 +55,19 @@ export function EditConditionDialog({
     setErrors({});
 
     try {
+      // 현재 날짜를 기준으로 추적 시작일과 종료일 재계산
+      const now = new Date();
+      const trackingStartedAt = now.toISOString();
+      const trackingEndedAt = new Date(now.getTime() + formData.period * 24 * 60 * 60 * 1000).toISOString();
+
       const updatedCondition: AlertCondition = {
         ...condition,
         condition_type: formData.type,
         threshold: formData.threshold,
         period_days: formData.period,
         updated_at: new Date().toISOString(),
+        tracking_started_at: trackingStartedAt,
+        tracking_ended_at: trackingEndedAt,
       };
 
       await onEditCondition(updatedCondition);
