@@ -55,24 +55,6 @@ interface AlertCondition {
 }
 ```
 
-### 주가 데이터 (stock_prices)
-```typescript
-interface StockPrice {
-  id: string;                     // UUID
-  stock_code: string;              // 주식 코드
-  market: string;                  // 시장 구분
-  price: number;                   // 현재 가격
-  change_rate: number;             // 변화율 (%)
-  change_amount: number;           // 변화량
-  volume: number;                  // 거래량
-  high_price: number | null;       // 고가
-  low_price: number | null;        // 저가
-  open_price: number | null;       // 시가
-  close_price: number | null;      // 종가
-  price_date: string;              // 가격 기준일 (YYYY-MM-DD)
-  created_at: string;              // 생성일
-}
-```
 
 ### 알림 기록 (notifications)
 ```typescript

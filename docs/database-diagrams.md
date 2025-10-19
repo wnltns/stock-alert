@@ -49,7 +49,6 @@ erDiagram
     
     alert_conditions ||--o{ notifications : "조건충족"
     
-    stock_prices }o--|| stock_subscriptions : "가격참조"
     
     users {
         uuid id PK
@@ -68,9 +67,7 @@ erDiagram
         varchar stock_code
         varchar stock_name
         varchar market
-        timestamp added_at
         boolean is_active
-        decimal base_price
         timestamp created_at
         timestamp updated_at
     }
@@ -81,8 +78,6 @@ erDiagram
         varchar condition_type
         decimal threshold
         integer period_days
-        decimal base_price
-        decimal target_price
         boolean is_active
         timestamp created_at
         timestamp updated_at
@@ -90,21 +85,6 @@ erDiagram
         timestamp condition_met_at
     }
     
-    stock_prices {
-        uuid id PK
-        varchar stock_code
-        varchar market
-        decimal price
-        decimal change_rate
-        decimal change_amount
-        bigint volume
-        decimal high_price
-        decimal low_price
-        decimal open_price
-        decimal close_price
-        date price_date
-        timestamp created_at
-    }
     
     notifications {
         uuid id PK
@@ -172,7 +152,6 @@ sequenceDiagram
         API->>SP: 주가 데이터 조회
         SP-->>API: NaverStockApiResponse
         API->>API: normalizeStockData()
-        API->>DB: INSERT stock_prices
         
         API->>DB: SELECT alert_conditions
         DB-->>API: 활성 조건 목록
@@ -212,7 +191,6 @@ graph LR
     subgraph "Database"
         H[stock_subscriptions]
         I[alert_conditions]
-        J[stock_prices]
     end
     
     A --> B
@@ -309,7 +287,6 @@ graph TD
         A[users.email]
         B[stock_subscriptions.user_id]
         C[alert_conditions.subscription_id]
-        D[stock_prices.stock_code_date]
     end
     
     subgraph "Performance Indexes"

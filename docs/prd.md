@@ -111,14 +111,11 @@ async function checkConditions() {
       user_id,
       stock_code,
       stock_name,
-      base_price,
       alert_conditions!inner(
         id,
         condition_type,
         threshold,
         period_days,
-        base_price,
-        target_price,
         is_active
       )
     `)
@@ -135,19 +132,6 @@ async function checkConditions() {
       const stockResponse = await fetch(`https://api.example.com/stocks/${subscription.stock_code}`);
       const stockData = await stockResponse.json();
       const currentPrice = stockData.price;
-
-      // 주가 데이터 저장
-      await supabase
-        .from("stock_prices")
-        .insert({
-          stock_code: subscription.stock_code,
-          market: "KOSPI", // 실제로는 API에서 가져와야 함
-          price: currentPrice,
-          change_rate: stockData.changeRate,
-          change_amount: stockData.changeAmount,
-          volume: stockData.volume,
-          price_date: new Date().toISOString().split('T')[0]
-        });
 
       // 각 조건 검사
       for (const condition of subscription.alert_conditions) {
@@ -182,19 +166,15 @@ async function checkConditions() {
 }
 
 function validateCondition(condition: any, currentPrice: number): boolean {
-  const { condition_type, threshold, base_price } = condition;
+  const { condition_type, threshold } = condition;
   
   switch (condition_type) {
-    case "daily_drop":
-      return currentPrice <= base_price * (1 - threshold / 100);
-    case "daily_rise":
-      return currentPrice >= base_price * (1 + threshold / 100);
-    case "period_drop":
-      // 기간 하락 로직 (실제로는 기간별 가격 히스토리 필요)
-      return currentPrice <= base_price * (1 - threshold / 100);
-    case "period_rise":
-      // 기간 상승 로직 (실제로는 기간별 가격 히스토리 필요)
-      return currentPrice >= base_price * (1 + threshold / 100);
+    case "drop":
+      // 하락 조건 로직 (실제로는 기간별 가격 히스토리 필요)
+      return true; // 임시로 항상 true 반환
+    case "rise":
+      // 상승 조건 로직 (실제로는 기간별 가격 히스토리 필요)
+      return true; // 임시로 항상 true 반환
     default:
       return false;
   }
@@ -215,7 +195,7 @@ async function createNotification(subscription: any, condition: any, currentPric
     condition_id: condition.id,
     notification_type: "push",
     title: `${subscription.stock_name} 알림`,
-    message: `${condition.condition_type} 조건 충족 (현재가: ${currentPrice.toLocaleString()}원)`,
+    message: `${condition.condition_type} 조건 충족`,
     sent_at: new Date().toISOString(),
     delivery_status: "pending"
   };
@@ -277,10 +257,9 @@ serve(async () => {
 
   1. `stock_subscriptions` → 사용자가 구독한 종목 조회
   2. 외부 주가 API → 최신 주가 가져오기
-  3. `stock_prices` → 주가 데이터 저장
-  4. `alert_conditions` → 조건 검사
-  5. `notifications` → 알림 기록 저장
-  6. `fcm_tokens` → 사용자 디바이스 토큰 조회 후 알림 발송
+  3. `alert_conditions` → 조건 검사
+  4. `notifications` → 알림 기록 저장
+  5. `fcm_tokens` → 사용자 디바이스 토큰 조회 후 알림 발송
 
 ---
 

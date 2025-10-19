@@ -7,10 +7,9 @@ StockAlert 앱의 데이터베이스 스키마 설계 문서입니다. 주식 �
 1. **users** - 사용자 정보
 2. **stock_subscriptions** - 주식 구독 정보
 3. **alert_conditions** - 알림 조건
-4. **stock_prices** - 주가 데이터 (히스토리)
-5. **notifications** - 알림 발송 기록
-6. **fcm_tokens** - 푸시 알림 토큰 관리
-7. **app_settings** - 앱 설정
+4. **notifications** - 알림 발송 기록
+5. **fcm_tokens** - 푸시 알림 토큰 관리
+6. **app_settings** - 앱 설정
 
 ---
 
@@ -52,9 +51,7 @@ CREATE TABLE stock_subscriptions (
     stock_code VARCHAR(10) NOT NULL,
     stock_name VARCHAR(100) NOT NULL,
     market VARCHAR(20) NOT NULL, -- 'KOSPI', 'KOSDAQ', 'NASDAQ', 'NYSE'
-    added_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     is_active BOOLEAN DEFAULT TRUE,
-    base_price DECIMAL(15,2), -- 구독 시점 기준 가격
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     
@@ -68,9 +65,7 @@ CREATE TABLE stock_subscriptions (
 - `stock_code`: 주식 코드 (예: "005930")
 - `stock_name`: 주식명 (예: "삼성전자")
 - `market`: 시장 구분
-- `added_at`: 구독 추가일
 - `is_active`: 구독 활성화 상태
-- `base_price`: 구독 시점 기준 가격
 
 ---
 
@@ -84,8 +79,6 @@ CREATE TABLE alert_conditions (
     condition_type VARCHAR(10) NOT NULL, -- 'rise', 'drop'
     threshold DECIMAL(5,2) NOT NULL, -- 등락률 (%)
     period_days INTEGER NOT NULL DEFAULT 1, -- 기간 (일)
-    base_price DECIMAL(15,2) NOT NULL, -- 기준 가격
-    target_price DECIMAL(15,2) NOT NULL, -- 목표 가격 (계산된 값)
     is_active BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -103,51 +96,13 @@ CREATE TABLE alert_conditions (
 - `condition_type`: 조건 유형 ('rise': 상승, 'drop': 하락)
 - `threshold`: 등락률 임계값 (%)
 - `period_days`: 조건 적용 기간 (일)
-- `base_price`: 조건 설정 시점 기준 가격
-- `target_price`: 계산된 목표 가격
 - `is_active`: 조건 활성화 상태
 - `last_checked_at`: 마지막 조건 체크 시간
 - `condition_met_at`: 조건 충족 시점
 
 ---
 
-## 4. stock_prices 테이블
-주가 데이터 히스토리를 저장합니다.
-
-```sql
-CREATE TABLE stock_prices (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    stock_code VARCHAR(10) NOT NULL,
-    market VARCHAR(20) NOT NULL,
-    price DECIMAL(15,2) NOT NULL,
-    change_rate DECIMAL(8,4) NOT NULL, -- 변화율 (%)
-    change_amount DECIMAL(15,2) NOT NULL, -- 변화량
-    volume BIGINT NOT NULL DEFAULT 0, -- 거래량
-    high_price DECIMAL(15,2), -- 고가
-    low_price DECIMAL(15,2), -- 저가
-    open_price DECIMAL(15,2), -- 시가
-    close_price DECIMAL(15,2), -- 종가
-    price_date DATE NOT NULL, -- 가격 기준일
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    
-    UNIQUE(stock_code, price_date)
-);
-```
-
-### 필드 설명
-- `id`: 가격 데이터 고유 식별자
-- `stock_code`: 주식 코드
-- `market`: 시장 구분
-- `price`: 현재 가격
-- `change_rate`: 변화율 (%)
-- `change_amount`: 변화량
-- `volume`: 거래량
-- `high_price`, `low_price`, `open_price`, `close_price`: OHLC 데이터
-- `price_date`: 가격 기준일
-
----
-
-## 5. notifications 테이블
+## 4. notifications 테이블
 알림 발송 기록을 저장합니다.
 
 ```sql
@@ -184,7 +139,7 @@ CREATE TABLE notifications (
 
 ---
 
-## 6. fcm_tokens 테이블
+## 5. fcm_tokens 테이블
 Firebase Cloud Messaging 토큰을 관리합니다.
 
 ```sql
@@ -214,7 +169,7 @@ CREATE TABLE fcm_tokens (
 
 ---
 
-## 7. app_settings 테이블
+## 6. app_settings 테이블
 앱 설정 정보를 저장합니다.
 
 ```sql
@@ -260,7 +215,6 @@ erDiagram
     
     alert_conditions ||--o{ notifications : "조건충족"
     
-    stock_prices }o--|| stock_subscriptions : "가격참조"
     
     users {
         uuid id PK
@@ -279,9 +233,7 @@ erDiagram
         varchar stock_code
         varchar stock_name
         varchar market
-        timestamp added_at
         boolean is_active
-        decimal base_price
         timestamp created_at
         timestamp updated_at
     }
@@ -292,8 +244,6 @@ erDiagram
         varchar condition_type
         decimal threshold
         integer period_days
-        decimal base_price
-        decimal target_price
         boolean is_active
         timestamp created_at
         timestamp updated_at
@@ -301,21 +251,6 @@ erDiagram
         timestamp condition_met_at
     }
     
-    stock_prices {
-        uuid id PK
-        varchar stock_code
-        varchar market
-        decimal price
-        decimal change_rate
-        decimal change_amount
-        bigint volume
-        decimal high_price
-        decimal low_price
-        decimal open_price
-        decimal close_price
-        date price_date
-        timestamp created_at
-    }
     
     notifications {
         uuid id PK
@@ -377,10 +312,6 @@ CREATE INDEX idx_conditions_active ON alert_conditions(is_active);
 CREATE INDEX idx_conditions_last_checked ON alert_conditions(last_checked_at);
 CREATE INDEX idx_conditions_met_at ON alert_conditions(condition_met_at);
 
--- 주가 데이터 관련 인덱스
-CREATE INDEX idx_prices_stock_date ON stock_prices(stock_code, price_date);
-CREATE INDEX idx_prices_date ON stock_prices(price_date);
-CREATE INDEX idx_prices_market ON stock_prices(market);
 
 -- 알림 관련 인덱스
 CREATE INDEX idx_notifications_user_sent ON notifications(user_id, sent_at);
@@ -412,10 +343,6 @@ ALTER TABLE alert_conditions
 ADD CONSTRAINT chk_period_range 
 CHECK (period_days > 0 AND period_days <= 30);
 
--- 가격 양수 제한
-ALTER TABLE stock_prices 
-ADD CONSTRAINT chk_price_positive 
-CHECK (price > 0);
 
 -- 알림 타입 제한
 ALTER TABLE notifications 
@@ -441,16 +368,16 @@ INSERT INTO users (email, name, timezone) VALUES
 
 ### 주식 구독 데이터
 ```sql
-INSERT INTO stock_subscriptions (user_id, stock_code, stock_name, market, base_price) VALUES
-((SELECT id FROM users WHERE email = 'user1@example.com'), '005930', '삼성전자', 'KOSPI', 75000),
-((SELECT id FROM users WHERE email = 'user1@example.com'), '035420', '네이버', 'KOSPI', 200000);
+INSERT INTO stock_subscriptions (user_id, stock_code, stock_name, market) VALUES
+((SELECT id FROM users WHERE email = 'user1@example.com'), '005930', '삼성전자', 'KOSPI'),
+((SELECT id FROM users WHERE email = 'user1@example.com'), '035420', '네이버', 'KOSPI');
 ```
 
 ### 알림 조건 데이터
 ```sql
-INSERT INTO alert_conditions (subscription_id, condition_type, threshold, period_days, base_price, target_price) VALUES
-((SELECT id FROM stock_subscriptions WHERE stock_code = '005930'), 'drop', 4.0, 1, 75000, 72000),
-((SELECT id FROM stock_subscriptions WHERE stock_code = '005930'), 'rise', 8.0, 3, 75000, 81000);
+INSERT INTO alert_conditions (subscription_id, condition_type, threshold, period_days) VALUES
+((SELECT id FROM stock_subscriptions WHERE stock_code = '005930'), 'drop', 4.0, 1),
+((SELECT id FROM stock_subscriptions WHERE stock_code = '005930'), 'rise', 8.0, 3);
 ```
 
 ---
@@ -463,10 +390,9 @@ INSERT INTO alert_conditions (subscription_id, condition_type, threshold, period
 3. alert_conditions 테이블 생성
 
 ### 2단계: 확장 테이블 생성
-1. stock_prices 테이블 생성
-2. notifications 테이블 생성
-3. fcm_tokens 테이블 생성
-4. app_settings 테이블 생성
+1. notifications 테이블 생성
+2. fcm_tokens 테이블 생성
+3. app_settings 테이블 생성
 
 ### 3단계: 인덱스 및 제약조건 추가
 1. 성능 최적화 인덱스 생성

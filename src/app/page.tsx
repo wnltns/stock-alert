@@ -10,6 +10,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { useStockPrices } from '@/hooks/use-stock-prices';
 import { AuthGuard } from '@/components/auth/auth-guard';
 import { UserDropdown } from '@/components/auth/user-dropdown';
+import { CacheInvalidateButton } from '@/components/ui/cache-invalidate-button';
 import { supabase } from '@/lib/supabase/client';
 
 export default function Home() {
@@ -22,7 +23,8 @@ export default function Home() {
     stocks: realStocks, 
     loading, 
     error, 
-    cached
+    cached,
+    invalidateCache
   } = useStockPrices();
 
   const handleAddStock = (data: AddStockFormData) => {
@@ -39,6 +41,10 @@ export default function Home() {
   const handleAddCondition = (stockCode: string) => {
     console.log('설정 페이지로 이동:', stockCode);
     router.push(`/conditions/${stockCode}`);
+  };
+
+  const handleCacheInvalidate = async () => {
+    await invalidateCache();
   };
 
   return (
@@ -97,9 +103,12 @@ export default function Home() {
                   내 주식 구독
                 </h2>
                 {cached && (
-                  <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded">
-                    캐시됨
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded">
+                      캐시됨
+                    </span>
+                    <CacheInvalidateButton onInvalidate={handleCacheInvalidate} />
+                  </div>
                 )}
               </div>
               

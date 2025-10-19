@@ -108,7 +108,6 @@ interface StockSubscription {
   stock_code: string;        // 예: "005930" (삼성전자)
   stock_name: string;        // 예: "삼성전자"
   market: string;            // 예: "KOSPI"
-  added_at: string;         // ISO 문자열
   is_active: boolean;
   base_price: number | null; // 구독 시점 기준 가격
   created_at: string;

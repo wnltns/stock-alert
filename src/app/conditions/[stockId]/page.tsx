@@ -42,18 +42,19 @@ export default function ConditionManagementPage() {
         }
 
         // 캐시된 데이터에 없으면 실제 데이터베이스에서 주식 구독 정보 조회
-        const { data: subscription, error } = await supabase
+        const { data: subscriptions, error } = await supabase
           .from('stock_subscriptions')
           .select('*')
           .eq('user_id', user.id)
-          .eq('stock_code', stockCode)
-          .eq('is_active', true)
-          .single();
+          .eq('stock_code', stockCode);
 
         if (error) {
           console.error('주식 구독 조회 오류:', error);
+          setLoading(false);
           return;
         }
+
+        const subscription = subscriptions && subscriptions.length > 0 ? subscriptions[0] : null;
 
         if (subscription) {
           // 알림 조건 조회
@@ -99,57 +100,103 @@ export default function ConditionManagementPage() {
     fetchStockData();
   }, [stockCode, user, router]);
 
-  const handleAddCondition = (data: AddConditionFormData) => {
-    if (!stock) return;
+  const handleAddCondition = async () => {
+    if (!stock || !user) return;
 
-    const newCondition: AlertCondition = {
-      id: Date.now().toString(),
-      subscription_id: stock.subscription.id,
-      condition_type: data.type,
-      threshold: data.threshold,
-      period_days: data.period,
-      base_price: stock.stockInfo.currentPrice,
-      target_price: data.type === 'drop' 
-        ? Math.round(stock.stockInfo.currentPrice * (1 - data.threshold / 100))
-        : Math.round(stock.stockInfo.currentPrice * (1 + data.threshold / 100)),
-      is_active: true,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      last_checked_at: null,
-      condition_met_at: null,
-    };
+    try {
+      // 알림 조건을 DB에서 다시 조회
+      const { data: conditions, error } = await supabase
+        .from('alert_conditions')
+        .select('*')
+        .eq('subscription_id', stock.subscription.id)
+        .order('created_at', { ascending: false });
 
-    setStock(prev => prev ? {
-      ...prev,
-      conditions: [...prev.conditions, newCondition]
-    } : null);
+      if (error) {
+        console.error('조건 조회 오류:', error);
+        return;
+      }
 
-    setIsAddDialogOpen(false);
+      // 조건 목록 업데이트
+      setStock(prev => prev ? {
+        ...prev,
+        conditions: conditions || []
+      } : null);
+
+    } catch (error) {
+      console.error('조건 새로고침 중 오류:', error);
+    }
   };
 
-  const handleEditCondition = (updatedCondition: AlertCondition) => {
-    setStock(prev => prev ? {
-      ...prev,
-      conditions: prev.conditions.map(condition => 
-        condition.id === updatedCondition.id ? updatedCondition : condition
-      )
-    } : null);
+  const handleEditCondition = async (updatedCondition: AlertCondition) => {
+    if (!user) return;
 
-    setEditingCondition(null);
+    try {
+      // Supabase에 조건 업데이트
+      const { data, error } = await supabase
+        .from('alert_conditions')
+        .update({
+          condition_type: updatedCondition.condition_type,
+          threshold: updatedCondition.threshold,
+          period_days: updatedCondition.period_days,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', updatedCondition.id)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('조건 수정 오류:', error);
+        throw new Error('조건 수정에 실패했습니다.');
+      }
+
+      // 로컬 상태 업데이트
+      setStock(prev => prev ? {
+        ...prev,
+        conditions: prev.conditions.map(condition => 
+          condition.id === updatedCondition.id ? data : condition
+        )
+      } : null);
+
+      setEditingCondition(null);
+      
+    } catch (error) {
+      console.error('조건 수정 중 오류 발생:', error);
+      throw error; // EditConditionDialog에서 에러 처리할 수 있도록 re-throw
+    }
   };
 
   const handleDeleteCondition = (conditionId: string) => {
     showConfirm({
-      title: '조건 삭제',
-      description: '정말로 이 조건을 삭제하시겠습니까? 삭제된 조건은 복구할 수 없습니다.',
-      confirmText: '삭제',
+      title: '삭제',
+      description: '조건을 삭제하시겠습니까?',
+      confirmText: '확인',
       cancelText: '취소',
       variant: 'destructive',
-      onConfirm: () => {
-        setStock(prev => prev ? {
-          ...prev,
-          conditions: prev.conditions.filter(condition => condition.id !== conditionId)
-        } : null);
+      onConfirm: async () => {
+        if (!user) return;
+
+        try {
+          // Supabase에서 조건 삭제
+          const { error } = await supabase
+            .from('alert_conditions')
+            .delete()
+            .eq('id', conditionId);
+
+          if (error) {
+            console.error('조건 삭제 오류:', error);
+            // 에러 처리 (토스트 메시지 등)
+            return;
+          }
+
+          // 로컬 상태 업데이트
+          setStock(prev => prev ? {
+            ...prev,
+            conditions: prev.conditions.filter(condition => condition.id !== conditionId)
+          } : null);
+
+        } catch (error) {
+          console.error('조건 삭제 중 오류 발생:', error);
+        }
       },
     });
   };
@@ -162,14 +209,38 @@ export default function ConditionManagementPage() {
       description: `${stock?.subscription.stock_name} 주식의 알림을 ${actionText}하시겠습니까?`,
       confirmText: actionText,
       cancelText: '취소',
-      onConfirm: () => {
-        setStock(prev => prev ? {
-          ...prev,
-          subscription: {
-            ...prev.subscription,
-            is_active: isActive
+      onConfirm: async () => {
+        if (!user || !stock) return;
+
+        try {
+          // 데이터베이스에서 구독 상태 업데이트
+          const { error } = await supabase
+            .from('stock_subscriptions')
+            .update({ 
+              is_active: isActive,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', stock.subscription.id)
+            .eq('user_id', user.id);
+
+          if (error) {
+            console.error('알림 상태 업데이트 오류:', error);
+            // 에러 처리 (토스트 메시지 등)
+            return;
           }
-        } : null);
+
+          // 로컬 상태 업데이트
+          setStock(prev => prev ? {
+            ...prev,
+            subscription: {
+              ...prev.subscription,
+              is_active: isActive
+            }
+          } : null);
+
+        } catch (error) {
+          console.error('알림 상태 변경 중 오류 발생:', error);
+        }
       },
     });
   };
@@ -179,9 +250,9 @@ export default function ConditionManagementPage() {
     const conditionType = condition ? getConditionTypeLabel(condition.condition_type) : '';
     
     showConfirm({
-      title: '조건 추적일 초기화',
-      description: `${conditionType} ${condition?.threshold}% 조건의 추적일을 초기화하시겠습니까?`,
-      confirmText: '초기화',
+      title: '초기화',
+      description: '추적일을 초기화하시겠습니까?',
+      confirmText: '확인',
       cancelText: '취소',
       variant: 'destructive',
       onConfirm: () => {
@@ -211,12 +282,6 @@ export default function ConditionManagementPage() {
     } else {
       return <TrendingDown className="h-4 w-4 text-red-500" />;
     }
-  };
-
-  const getTargetPrice = (condition: AlertCondition) => {
-    return condition.condition_type === 'drop' 
-      ? Math.round(condition.base_price * (1 - condition.threshold / 100))
-      : Math.round(condition.base_price * (1 + condition.threshold / 100));
   };
 
   const isConditionMet = (condition: AlertCondition) => {
@@ -259,48 +324,53 @@ export default function ConditionManagementPage() {
   return (
     <AuthGuard>
       <main className="min-h-screen bg-background transition-colors duration-300">
-      <div className="container mx-auto px-4 py-8">
-        {/* 헤더 */}
-        <div className="mb-8">
-          <Button 
-            variant="ghost" 
-            onClick={() => router.push('/')}
-            className="mb-4"
-          >
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            뒤로가기
-          </Button>
-          
-          <div className="text-center">
-            <div className="flex items-center justify-center gap-4 mb-2">
-              <h1 className="text-3xl font-bold leading-tight">
-                {stock.subscription.stock_name}
-              </h1>
-              <div className="flex items-center gap-2 flex-shrink-0">
-                <span className="text-sm text-muted-foreground">알림</span>
-                <Switch
-                  checked={stock.subscription.is_active ?? false}
-                  onCheckedChange={handleToggleActive}
-                  className="h-4 w-8 [&>span]:h-3 [&>span]:w-3 [&>span]:data-[state=checked]:translate-x-4"
-                />
+        <div className="container mx-auto px-4 py-8">
+          <div className="max-w-4xl mx-auto">
+            {/* 헤더 */}
+            <div className="mb-8">
+              <Button 
+                variant="ghost" 
+                onClick={() => router.push('/')}
+                className="mb-8"
+              >
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                뒤로가기
+              </Button>
+              
+              {/* 주식 정보 헤더 */}
+              <div className="mb-8">
+                <div className="flex items-start justify-between mb-4">
+                  <div className="flex-1 min-w-0">
+                    <h1 className="text-3xl font-bold mb-2 truncate">
+                      {stock.subscription.stock_name}
+                    </h1>
+                    <div className="flex items-center gap-3 mb-4">
+                      <span className="text-muted-foreground text-lg">
+                        {stock.subscription.stock_code}
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm text-muted-foreground">알림</span>
+                        <Switch
+                          checked={stock.subscription.is_active ?? false}
+                          onCheckedChange={handleToggleActive}
+                        />
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <span className="text-sm text-muted-foreground">
+                        {stock.conditions.length}개의 조건이 설정되어 있습니다
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex-shrink-0 ml-6">
+                    <Button onClick={() => setIsAddDialogOpen(true)} className="gap-2">
+                      <Plus className="h-4 w-4" />
+                      조건 추가
+                    </Button>
+                  </div>
+                </div>
               </div>
             </div>
-            <p className="text-muted-foreground mb-4">{stock.subscription.stock_code}</p>
-            
-            <div className="flex items-center justify-center gap-4 mb-6">
-              <Badge variant="outline">{stock.conditions.length}개 조건</Badge>
-            </div>
-          </div>
-        </div>
-
-        <div className="max-w-4xl mx-auto">
-          {/* 조건 추가 버튼 */}
-          <div className="mb-6 text-center">
-            <Button onClick={() => setIsAddDialogOpen(true)} className="gap-2">
-              <Plus className="h-4 w-4" />
-              조건 추가
-            </Button>
-          </div>
 
           {/* 조건 목록 */}
           {stock.conditions.length === 0 ? (
@@ -314,77 +384,59 @@ export default function ConditionManagementPage() {
           ) : (
             <div className="space-y-4">
               {stock.conditions.map((condition) => {
-                const targetPrice = getTargetPrice(condition);
                 const isMet = isConditionMet(condition);
                 
                 return (
                   <Card key={condition.id} className="transition-all duration-300 hover:shadow-lg">
-                    <CardHeader className="pb-3">
+                    <CardContent className="p-4">
                       <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-3 flex-1 min-w-0">
                           {getConditionIcon(condition.condition_type)}
-                        <div className="flex-1 min-w-0">
-                          <CardTitle className="text-lg leading-tight">
-                            {getConditionTypeLabel(condition.condition_type)} {condition.threshold}%
-                          </CardTitle>
-                          <CardDescription className="leading-tight">
-                            기준가: {formatPrice(condition.base_price)} · {condition.period_days}일간
-                          </CardDescription>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium text-base">
+                                {getConditionTypeLabel(condition.condition_type)} {condition.threshold}%
+                              </span>
+                              <Badge variant="outline" className="text-xs">
+                                {condition.period_days}일
+                              </Badge>
+                            </div>
+                            <div className="text-sm text-muted-foreground mt-1">
+                              {condition.created_at ? new Date(condition.created_at).toLocaleDateString('ko-KR') : '날짜 없음'} 설정
+                            </div>
+                          </div>
                         </div>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <Badge variant={isMet ? "default" : "outline"} className={isMet ? "bg-green-500" : ""}>
+                            {isMet ? "충족" : "대기"}
+                          </Badge>
+                          <div className="flex gap-1">
+                            <Button 
+                              variant="ghost" 
+                              size="sm"
+                              onClick={() => setEditingCondition(condition)}
+                              className="h-8 w-8 p-0"
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button 
+                              variant="ghost" 
+                              size="sm"
+                              onClick={() => handleResetConditionTracking(condition.id)}
+                              className="h-8 w-8 p-0"
+                            >
+                              <RotateCcw className="h-4 w-4" />
+                            </Button>
+                            <Button 
+                              variant="ghost" 
+                              size="sm"
+                              onClick={() => handleDeleteCondition(condition.id)}
+                              className="h-8 w-8 p-0 text-red-600 hover:text-red-700"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </div>
-                        <Badge variant={isMet ? "default" : "outline"} className={isMet ? "bg-green-500" : ""}>
-                          {isMet ? "충족" : "대기"}
-                        </Badge>
-                      </div>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <div className="grid grid-cols-2 gap-4 text-sm">
-                        <div>
-                          <span className="text-muted-foreground">임계값:</span>
-                          <span className="ml-2 font-medium">{condition.threshold}%</span>
-                        </div>
-                        <div>
-                          <span className="text-muted-foreground">기간:</span>
-                          <span className="ml-2 font-medium">{condition.period_days}일</span>
-                        </div>
-                        <div>
-                          <span className="text-muted-foreground">목표가:</span>
-                          <span className="ml-2 font-medium">{formatPrice(targetPrice)}</span>
-                        </div>
-                        <div>
-                          <span className="text-muted-foreground">현재가:</span>
-                          <span className="ml-2 font-medium">{formatPrice(stock.stockInfo.currentPrice)}</span>
-                        </div>
-                      </div>
-                      
-                      <div className="flex gap-2">
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          onClick={() => setEditingCondition(condition)}
-                          className="flex-1 gap-2"
-                        >
-                          <Edit className="h-4 w-4" />
-                          수정
-                        </Button>
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          onClick={() => handleResetConditionTracking(condition.id)}
-                          className="flex-1 gap-2"
-                        >
-                          <RotateCcw className="h-4 w-4" />
-                          초기화
-                        </Button>
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          onClick={() => handleDeleteCondition(condition.id)}
-                          className="flex-1 gap-2 text-red-600 hover:text-red-700"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                          삭제
-                        </Button>
                       </div>
                     </CardContent>
                   </Card>
@@ -392,12 +444,12 @@ export default function ConditionManagementPage() {
               })}
             </div>
           )}
+          </div>
         </div>
 
         {/* 조건 추가 다이얼로그 */}
         <AddConditionDialog
-          stockName={stock.subscription.stock_name}
-          stockPrice={stock.stockInfo.currentPrice}
+          subscriptionId={stock.subscription.id}
           onAddCondition={handleAddCondition}
           open={isAddDialogOpen}
           onOpenChange={setIsAddDialogOpen}
@@ -407,7 +459,6 @@ export default function ConditionManagementPage() {
         {editingCondition && (
           <EditConditionDialog
             condition={editingCondition}
-            stockPrice={stock.stockInfo.currentPrice}
             onEditCondition={handleEditCondition}
             open={true}
             onOpenChange={(open) => {
@@ -417,7 +468,6 @@ export default function ConditionManagementPage() {
             }}
           />
         )}
-      </div>
       
       {/* 확인 다이얼로그 */}
       {ConfirmDialog}

@@ -9,29 +9,28 @@ import { MIN_THRESHOLD, MAX_THRESHOLD, MIN_PERIOD, MAX_PERIOD } from '@/constant
 
 interface EditConditionDialogProps {
   condition: AlertCondition;
-  stockPrice: number;
-  onEditCondition: (condition: AlertCondition) => void;
+  onEditCondition: (condition: AlertCondition) => Promise<void>;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
 
 export function EditConditionDialog({ 
   condition, 
-  stockPrice, 
   onEditCondition, 
   open, 
   onOpenChange 
 }: EditConditionDialogProps) {
   const [formData, setFormData] = useState<AddConditionFormData>({
-    type: condition.condition_type,
+    type: condition.condition_type as 'rise' | 'drop',
     threshold: condition.threshold,
     period: condition.period_days,
   });
 
-  const [errors, setErrors] = useState<Partial<AddConditionFormData>>({});
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [isLoading, setIsLoading] = useState(false);
 
   const validateForm = (): boolean => {
-    const newErrors: Partial<AddConditionFormData> = {};
+    const newErrors: Record<string, string> = {};
 
     if (!formData.threshold || formData.threshold < MIN_THRESHOLD || formData.threshold > MAX_THRESHOLD) {
       newErrors.threshold = `임계값은 ${MIN_THRESHOLD}%에서 ${MAX_THRESHOLD}% 사이여야 합니다.`;
@@ -45,26 +44,32 @@ export function EditConditionDialog({
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!validateForm()) {
       return;
     }
 
-    const updatedCondition: AlertCondition = {
-      ...condition,
-      condition_type: formData.type,
-      threshold: formData.threshold,
-      period_days: formData.period,
-      base_price: stockPrice, // 현재 주가로 기준가 업데이트
-      target_price: formData.type === 'drop' 
-        ? Math.round(stockPrice * (1 - formData.threshold / 100))
-        : Math.round(stockPrice * (1 + formData.threshold / 100)),
-      updated_at: new Date().toISOString(),
-    };
+    setIsLoading(true);
+    setErrors({});
 
-    onEditCondition(updatedCondition);
+    try {
+      const updatedCondition: AlertCondition = {
+        ...condition,
+        condition_type: formData.type,
+        threshold: formData.threshold,
+        period_days: formData.period,
+        updated_at: new Date().toISOString(),
+      };
+
+      await onEditCondition(updatedCondition);
+    } catch (error) {
+      console.error('조건 수정 중 오류 발생:', error);
+      setErrors({ general: '조건 수정 중 오류가 발생했습니다. 다시 시도해주세요.' });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const getConditionTypeOptions = () => {
@@ -75,42 +80,61 @@ export function EditConditionDialog({
     return options;
   };
 
-  const getTargetPrice = () => {
-    return formData.type === 'drop' 
-      ? Math.round(stockPrice * (1 - formData.threshold / 100))
-      : Math.round(stockPrice * (1 + formData.threshold / 100));
-  };
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>조건 수정</DialogTitle>
-          <DialogDescription>
-            알림 조건을 수정합니다. 현재 주가: {stockPrice.toLocaleString()}원
-          </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          {/* 일반 에러 메시지 */}
+          {errors.general && (
+            <div className="rounded-md bg-red-50 p-3 text-sm text-red-600 dark:bg-red-900/20 dark:text-red-400">
+              {errors.general}
+            </div>
+          )}
+
           {/* 조건 유형 */}
           <div className="space-y-2">
             <label className="text-sm font-medium">조건 유형</label>
-            <select
-              value={formData.type}
-              onChange={(e) => setFormData(prev => ({ ...prev, type: e.target.value as AlertCondition['condition_type'] }))}
-              className="w-full p-2 border border-input bg-background rounded-md"
-            >
-              {getConditionTypeOptions().map(option => (
-                <option key={option.value} value={option.value}>
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                { value: 'drop', label: '하락' },
+                { value: 'rise', label: '상승' },
+              ].map((option) => (
+                <Button
+                  key={option.value}
+                  type="button"
+                  variant={formData.type === option.value ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setFormData(prev => ({ ...prev, type: option.value as 'rise' | 'drop' }))}
+                >
                   {option.label}
-                </option>
+                </Button>
               ))}
-            </select>
+            </div>
+          </div>
+
+          {/* 기간 */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium">추적일</label>
+            <Input
+              type="number"
+              min={MIN_PERIOD}
+              max={MAX_PERIOD}
+              value={formData.period}
+              onChange={(e) => setFormData(prev => ({ ...prev, period: parseInt(e.target.value) || 1 }))}
+              placeholder="예: 3"
+            />
+            {errors.period && (
+              <p className="text-sm text-red-500">{errors.period}</p>
+            )}
           </div>
 
           {/* 임계값 */}
           <div className="space-y-2">
-            <label className="text-sm font-medium">임계값 (%)</label>
+            <label className="text-sm font-medium">등락률(%)</label>
             <Input
               type="number"
               step="0.1"
@@ -125,40 +149,20 @@ export function EditConditionDialog({
             )}
           </div>
 
-          {/* 기간 */}
-          <div className="space-y-2">
-            <label className="text-sm font-medium">기간 (일)</label>
-            <Input
-              type="number"
-              min={MIN_PERIOD}
-              max={MAX_PERIOD}
-              value={formData.period}
-              onChange={(e) => setFormData(prev => ({ ...prev, period: parseInt(e.target.value) || 1 }))}
-              placeholder="예: 3"
-            />
-            {errors.period && (
-              <p className="text-sm text-red-500">{errors.period}</p>
-            )}
-          </div>
-
-          {/* 목표가 미리보기 */}
+          {/* 조건 미리보기 */}
           <div className="p-3 bg-muted rounded-md">
             <p className="text-sm text-muted-foreground">
-              목표가: <span className="font-medium">{getTargetPrice().toLocaleString()}원</span>
-            </p>
-            <p className="text-xs text-muted-foreground">
-              {formData.type === 'rise' ? '상승' : '하락'} {formData.threshold}% 
-              ({formData.period}일간)
+              {formData.period}일간, 총 {formData.threshold}% {formData.type === 'rise' ? '상승' : '하락'}
             </p>
           </div>
 
           {/* 버튼 */}
           <div className="flex gap-2 pt-4">
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="flex-1">
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="flex-1" disabled={isLoading}>
               취소
             </Button>
-            <Button type="submit" className="flex-1">
-              수정
+            <Button type="submit" className="flex-1" disabled={isLoading}>
+              {isLoading ? '수정 중...' : '수정'}
             </Button>
           </div>
         </form>

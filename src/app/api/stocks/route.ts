@@ -244,7 +244,6 @@ export async function POST(request: NextRequest) {
         market: marketValue,
         nation_type: nationType,
         is_active: true,
-        base_price: null,
         api_info: apiInfo, // API 정보 저장
       } as any)
       .select()

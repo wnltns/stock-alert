@@ -11,12 +11,11 @@ const supabase = createClient<Database>(supabaseUrl, supabaseServiceKey);
 
 // 캐시된 주가 데이터 조회 함수
 async function getCachedStockPrices(userId: string): Promise<StockDetail[]> {
-  // 사용자의 활성 주식 구독 목록 조회 (최근 등록된 순으로 정렬)
+  // 사용자의 주식 구독 목록 조회 (최근 등록된 순으로 정렬)
   const { data: subscriptions, error: subscriptionsError } = await supabase
     .from('stock_subscriptions')
     .select('*')
     .eq('user_id', userId)
-    .eq('is_active', true)
     .order('created_at', { ascending: false });
 
   if (subscriptionsError || !subscriptions || subscriptions.length === 0) {
@@ -34,6 +33,12 @@ async function getCachedStockPrices(userId: string): Promise<StockDetail[]> {
       if (!apiInfo || !apiInfo.endpoint) {
         console.warn(`주식 ${subscription.stock_code}의 API 정보가 없습니다.`);
         // API 정보가 없으면 기본값으로 설정
+        const { data: conditions } = await supabase
+          .from('alert_conditions')
+          .select('*')
+          .eq('subscription_id', subscription.id)
+          .eq('is_active', true);
+
         stockDetails.push({
           subscription,
           stockInfo: {
@@ -47,7 +52,8 @@ async function getCachedStockPrices(userId: string): Promise<StockDetail[]> {
             marketName: subscription.market,
             lastTradedAt: new Date(),
             isRising: false,
-          }
+          },
+          conditions: conditions || []
         });
         continue;
       }
@@ -66,6 +72,12 @@ async function getCachedStockPrices(userId: string): Promise<StockDetail[]> {
       if (!response.ok) {
         console.warn(`주식 ${subscription.stock_code} API 호출 실패: ${response.status}`);
         // API 호출 실패 시 기본값으로 설정
+        const { data: conditions } = await supabase
+          .from('alert_conditions')
+          .select('*')
+          .eq('subscription_id', subscription.id)
+          .eq('is_active', true);
+
         stockDetails.push({
           subscription,
           stockInfo: {
@@ -79,7 +91,8 @@ async function getCachedStockPrices(userId: string): Promise<StockDetail[]> {
             marketName: subscription.market,
             lastTradedAt: new Date(),
             isRising: false,
-          }
+          },
+          conditions: conditions || []
         });
         continue;
       }
@@ -94,15 +107,23 @@ async function getCachedStockPrices(userId: string): Promise<StockDetail[]> {
         currentPrice: parseFloat((apiData.closePrice || '0').replace(/,/g, '')) || 0,
         changeAmount: parseFloat((apiData.compareToPreviousClosePrice || '0').replace(/,/g, '')) || 0,
         changeRate: parseFloat(apiData.fluctuationsRatio || '0') || 0,
-        marketStatus: apiData.marketStatus === 'OPEN' ? 'OPEN' : 'CLOSE' as const,
+        marketStatus: apiData.marketStatus === 'OPEN' ? 'OPEN' as const : 'CLOSE' as const,
         marketName: apiData.stockExchangeType?.nameKor || subscription.market,
         lastTradedAt: new Date(apiData.localTradedAt || new Date()),
         isRising: apiData.compareToPreviousPrice?.code === '2',
       };
 
+      // 해당 구독의 알림 조건들 가져오기
+      const { data: conditions } = await supabase
+        .from('alert_conditions')
+        .select('*')
+        .eq('subscription_id', subscription.id)
+        .eq('is_active', true);
+
       stockDetails.push({
         subscription,
-        stockInfo
+        stockInfo,
+        conditions: conditions || []
       });
 
       // API 호출 성공 시 마지막 호출 시간 업데이트
@@ -119,6 +140,12 @@ async function getCachedStockPrices(userId: string): Promise<StockDetail[]> {
     } catch (error) {
       console.error(`주식 ${subscription.stock_code} 처리 중 오류:`, error);
       // 에러 발생 시 기본값으로 설정
+      const { data: conditions } = await supabase
+        .from('alert_conditions')
+        .select('*')
+        .eq('subscription_id', subscription.id)
+        .eq('is_active', true);
+
       stockDetails.push({
         subscription,
         stockInfo: {
@@ -132,7 +159,8 @@ async function getCachedStockPrices(userId: string): Promise<StockDetail[]> {
           marketName: subscription.market,
           lastTradedAt: new Date(),
           isRising: false,
-        }
+        },
+        conditions: conditions || []
       });
     }
   }

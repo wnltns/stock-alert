@@ -5,19 +5,19 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { AddConditionFormData } from '@/types';
+import { AddConditionFormData, AlertConditionInsert } from '@/types';
+import { supabase } from '@/lib/supabase/client';
+import { useAuth } from '@/hooks/use-auth';
 
 interface AddConditionDialogProps {
-  stockName: string;
-  stockPrice: number;
-  onAddCondition: (data: AddConditionFormData) => void;
+  subscriptionId: string;
+  onAddCondition: () => void; // 조건 추가 후 콜백 (새로고침용)
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
 }
 
 export function AddConditionDialog({ 
-  stockName, 
-  stockPrice, 
+  subscriptionId,
   onAddCondition,
   open = true,
   onOpenChange
@@ -27,125 +27,196 @@ export function AddConditionDialog({
     threshold: 4.0,
     period: 1,
   });
+  const [isLoading, setIsLoading] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const { user } = useAuth();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const validateForm = (): boolean => {
+    const newErrors: Record<string, string> = {};
+
+    if (!formData.threshold || formData.threshold < 0.1 || formData.threshold > 100) {
+      newErrors.threshold = '등락률은 0.1% ~ 100% 범위로 입력해주세요.';
+    }
+
+    if (!formData.period || formData.period < 1 || formData.period > 30) {
+      newErrors.period = '추적일은 1일 ~ 30일 범위로 입력해주세요.';
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    onAddCondition(formData);
-    setFormData({ type: 'drop', threshold: 4.0, period: 1 });
-    if (onOpenChange) {
-      onOpenChange(false);
+    
+    if (!user) {
+      setErrors({ general: '로그인이 필요합니다.' });
+      return;
+    }
+
+    if (!validateForm()) {
+      return;
+    }
+
+    setIsLoading(true);
+    setErrors({});
+
+    try {
+      // 조건 타입을 DB 형식으로 변환 (데이터베이스 제약조건에 맞게 수정)
+      const conditionType = formData.type === 'drop' ? 'drop' : 'rise';
+      
+      // DB에 저장할 데이터 준비
+      const conditionData: AlertConditionInsert = {
+        subscription_id: subscriptionId,
+        condition_type: conditionType,
+        threshold: formData.threshold,
+        period_days: formData.period,
+        is_active: true,
+      };
+
+      // Supabase에 조건 저장
+      const { data, error } = await supabase
+        .from('alert_conditions')
+        .insert(conditionData)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('조건 저장 오류:', error);
+        
+        // 구체적인 에러 메시지 제공
+        if (error.code === '23505') {
+          setErrors({ general: '이미 동일한 조건이 존재합니다.' });
+        } else if (error.code === '23503') {
+          setErrors({ general: '주식 구독 정보를 찾을 수 없습니다.' });
+        } else {
+          setErrors({ general: '조건 저장에 실패했습니다. 다시 시도해주세요.' });
+        }
+        return;
+      }
+
+      console.log('조건이 성공적으로 저장되었습니다:', data);
+      
+      // 폼 초기화
+      setFormData({ type: 'drop', threshold: 4.0, period: 1 });
+      
+      // 다이얼로그 닫기
+      if (onOpenChange) {
+        onOpenChange(false);
+      }
+      
+      // 상위 컴포넌트에 새로고침 요청
+      onAddCondition();
+      
+    } catch (error) {
+      console.error('조건 저장 중 오류 발생:', error);
+      setErrors({ general: '조건 저장 중 오류가 발생했습니다. 다시 시도해주세요.' });
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const handleCancel = () => {
     setFormData({ type: 'drop', threshold: 4.0, period: 1 });
+    setErrors({});
     if (onOpenChange) {
       onOpenChange(false);
     }
   };
 
-  const getConditionDescription = () => {
-    const typeLabels = {
-      rise: '상승',
-      drop: '하락',
-    };
-    
-    return `${formData.period}일 ${typeLabels[formData.type]} ${formData.threshold}%`;
-  };
-
-  const getConditionPrice = () => {
-    const multiplier = formData.type === 'drop' ? (1 - formData.threshold / 100) : (1 + formData.threshold / 100);
-    return Math.round(stockPrice * multiplier);
+  const getConditionTypeOptions = () => {
+    const options = [
+      { value: 'drop', label: '하락' },
+      { value: 'rise', label: '상승' },
+    ];
+    return options;
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>{stockName} 알림 조건 추가</DialogTitle>
-          <DialogDescription>
-            현재 가격: {stockPrice.toLocaleString()}원
-          </DialogDescription>
+          <DialogTitle>조건 추가</DialogTitle>
         </DialogHeader>
-        
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">조건 유형</label>
-              <div className="grid grid-cols-2 gap-2">
-                {[
-                  { value: 'drop', label: '하락' },
-                  { value: 'rise', label: '상승' },
-                ].map((option) => (
-                  <Button
-                    key={option.value}
-                    type="button"
-                    variant={formData.type === option.value ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => setFormData(prev => ({ ...prev, type: option.value as any }))}
-                  >
-                    {option.label}
-                  </Button>
-                ))}
-              </div>
-            </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <label htmlFor="threshold" className="text-sm font-medium">
-                  등락률 (%)
-                </label>
-                <Input
-                  id="threshold"
-                  type="number"
-                  step="0.1"
-                  min="0.1"
-                  max="100"
-                  value={formData.threshold}
-                  onChange={(e) => setFormData(prev => ({ ...prev, threshold: parseFloat(e.target.value) || 0 }))}
-                />
-              </div>
-              
-              <div className="space-y-2">
-                <label htmlFor="period" className="text-sm font-medium">
-                  기간 (일)
-                </label>
-                <Input
-                  id="period"
-                  type="number"
-                  min="1"
-                  max="30"
-                  value={formData.period}
-                  onChange={(e) => setFormData(prev => ({ ...prev, period: parseInt(e.target.value) || 1 }))}
-                />
-              </div>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {/* 일반 에러 메시지 */}
+          {errors.general && (
+            <div className="rounded-md bg-red-50 p-3 text-sm text-red-600 dark:bg-red-900/20 dark:text-red-400">
+              {errors.general}
+            </div>
+          )}
+
+          {/* 조건 유형 */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium">조건 유형</label>
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                { value: 'drop', label: '하락' },
+                { value: 'rise', label: '상승' },
+              ].map((option) => (
+                <Button
+                  key={option.value}
+                  type="button"
+                  variant={formData.type === option.value ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setFormData(prev => ({ ...prev, type: option.value as 'rise' | 'drop' }))}
+                >
+                  {option.label}
+                </Button>
+              ))}
             </div>
           </div>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-sm">조건 미리보기</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">조건:</span>
-                <span className="text-sm font-medium">{getConditionDescription()}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">알림 가격:</span>
-                <span className="font-medium">{getConditionPrice().toLocaleString()}원</span>
-              </div>
-            </CardContent>
-          </Card>
-          
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={handleCancel}>
+          {/* 추적일 */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium">추적일</label>
+            <Input
+              type="number"
+              min="1"
+              max="30"
+              value={formData.period}
+              onChange={(e) => setFormData(prev => ({ ...prev, period: parseInt(e.target.value) || 1 }))}
+              placeholder="예: 3"
+            />
+            {errors.period && (
+              <p className="text-sm text-red-500">{errors.period}</p>
+            )}
+          </div>
+
+          {/* 등락률 */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium">등락률(%)</label>
+            <Input
+              type="number"
+              step="0.1"
+              min="0.1"
+              max="100"
+              value={formData.threshold}
+              onChange={(e) => setFormData(prev => ({ ...prev, threshold: parseFloat(e.target.value) || 0 }))}
+              placeholder="예: 4.0"
+            />
+            {errors.threshold && (
+              <p className="text-sm text-red-500">{errors.threshold}</p>
+            )}
+          </div>
+
+          {/* 조건 미리보기 */}
+          <div className="p-3 bg-muted rounded-md">
+            <p className="text-sm text-muted-foreground">
+            {formData.period}일간, 총 {formData.threshold}% {formData.type === 'rise' ? '상승' : '하락'}
+            </p>
+          </div>
+
+          {/* 버튼 */}
+          <div className="flex gap-2 pt-4">
+            <Button type="button" variant="outline" onClick={handleCancel} className="flex-1" disabled={isLoading}>
               취소
             </Button>
-            <Button type="submit">
-              조건 추가
+            <Button type="submit" className="flex-1" disabled={isLoading}>
+              {isLoading ? '등록 중...' : '등록'}
             </Button>
-          </DialogFooter>
+          </div>
         </form>
       </DialogContent>
     </Dialog>

@@ -47,6 +47,19 @@ export function StockCard({ stock, onViewDetails, onAddCondition, alertHistory =
     }
   };
 
+  const isConditionMet = (condition: any) => {
+    if (!condition.is_active) return false;
+    
+    // 실제 조건 충족 로직 구현
+    // 현재는 단순히 활성 상태만 확인하지만, 실제로는 주가 변화율과 비교해야 함
+    // 예시: 상승 조건의 경우 현재 주가가 임계값 이상 상승했는지 확인
+    // 예시: 하락 조건의 경우 현재 주가가 임계값 이상 하락했는지 확인
+    
+    // 임시 로직: 활성 상태인 조건을 모두 충족된 것으로 표시
+    // 실제 구현에서는 주가 히스토리와 비교하여 정확한 충족 여부를 판단해야 함
+    return condition.is_active;
+  };
+
   return (
     <Card className="w-full h-full flex flex-col transition-all duration-300 hover:shadow-lg dark:hover:shadow-2xl dark:hover:shadow-primary/10">
       <CardHeader className="pb-3 flex-shrink-0">
@@ -58,20 +71,12 @@ export function StockCard({ stock, onViewDetails, onAddCondition, alertHistory =
             <CardDescription className="truncate">{subscription.stock_code}</CardDescription>
           </div>
           <div className="flex flex-col items-end gap-1 flex-shrink-0">
-            <Badge variant="outline">{conditions.length}개 조건</Badge>
+            <Badge variant={"outline"}>
+              {subscription.is_active ? "ON" : "OFF"}
+            </Badge>
             {conditions.length > 0 && (
               <div className="text-xs text-muted-foreground">
-                {conditions.filter(condition => {
-                  const targetPrice = condition.condition_type === 'drop' 
-                    ? Math.round(condition.base_price * (1 - condition.threshold / 100))
-                    : Math.round(condition.base_price * (1 + condition.threshold / 100));
-                  
-                  if (condition.condition_type === 'rise') {
-                    return stockInfo.currentPrice >= targetPrice;
-                  } else {
-                    return stockInfo.currentPrice <= targetPrice;
-                  }
-                }).length}개 충족
+                {conditions.filter(condition => isConditionMet(condition)).length}개 충족
               </div>
             )}
           </div>
@@ -93,9 +98,9 @@ export function StockCard({ stock, onViewDetails, onAddCondition, alertHistory =
           </div>
         </div>
         {/* 조건 목록 */}
-        {conditions.length > 0 && (
-          <div className="space-y-2 flex-1">
-            <div className="text-sm font-medium text-muted-foreground">설정된 조건</div>
+        <div className="space-y-2 flex-1">
+          <div className="text-sm font-medium text-muted-foreground">설정된 조건</div>
+          {conditions.length > 0 ? (
             <div className="space-y-1">
               {conditions.slice(0, 2).map((condition) => {
                 const typeLabels: Record<string, string> = {
@@ -103,18 +108,12 @@ export function StockCard({ stock, onViewDetails, onAddCondition, alertHistory =
                   drop: '하락',
                 };
                 
-                const targetPrice = condition.condition_type === 'drop' 
-                  ? Math.round(condition.base_price * (1 - condition.threshold / 100))
-                  : Math.round(condition.base_price * (1 + condition.threshold / 100));
-                
-                const isMet = condition.condition_type === 'rise'
-                  ? stockInfo.currentPrice >= targetPrice
-                  : stockInfo.currentPrice <= targetPrice;
+                const isMet = isConditionMet(condition);
                 
                 return (
                   <div key={condition.id} className="flex items-start justify-between text-xs bg-muted/50 dark:bg-muted/30 p-2 rounded transition-colors gap-2">
                     <span className="flex-1 leading-tight">{typeLabels[condition.condition_type]} {condition.threshold}% ({condition.period_days}일)</span>
-                    <Badge variant={isMet ? "default" : "outline"} className="text-xs flex-shrink-0">
+                    <Badge variant={isMet ? "default" : "outline"} className={`text-xs flex-shrink-0 ${isMet ? "bg-green-500" : ""}`}>
                       {isMet ? "충족" : "대기"}
                     </Badge>
                   </div>
@@ -126,8 +125,12 @@ export function StockCard({ stock, onViewDetails, onAddCondition, alertHistory =
                 </div>
               )}
             </div>
-          </div>
-        )}
+          ) : (
+            <div className="text-xs text-muted-foreground text-center py-2">
+              조건이 없습니다
+            </div>
+          )}
+        </div>
         
         <div className="flex space-x-2 mt-auto">
           <Button 

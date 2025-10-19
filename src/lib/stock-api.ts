@@ -80,9 +80,6 @@ export function normalizeStockData(apiResponse: NaverStockApiResponse): StockInf
     isRising,
     // 추가 정보는 API에서 제공하지 않으므로 기본값 설정
     volume: 0,
-    highPrice: undefined,
-    lowPrice: undefined,
-    openPrice: undefined,
   };
 }
 

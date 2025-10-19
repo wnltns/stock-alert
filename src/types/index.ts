@@ -111,9 +111,6 @@ export interface StockInfo {
   lastTradedAt: Date;
   isRising: boolean;
   volume?: number;
-  highPrice?: number;
-  lowPrice?: number;
-  openPrice?: number;
 }
 
 // Supabase 데이터베이스 타입 정의 (자동 생성)
@@ -135,7 +132,6 @@ export type Database = {
     Tables: {
       alert_conditions: {
         Row: {
-          base_price: number
           condition_met_at: string | null
           condition_type: string
           created_at: string | null
@@ -144,12 +140,10 @@ export type Database = {
           last_checked_at: string | null
           period_days: number
           subscription_id: string
-          target_price: number
           threshold: number
           updated_at: string | null
         }
         Insert: {
-          base_price: number
           condition_met_at?: string | null
           condition_type: string
           created_at?: string | null
@@ -158,12 +152,10 @@ export type Database = {
           last_checked_at?: string | null
           period_days?: number
           subscription_id: string
-          target_price: number
           threshold: number
           updated_at?: string | null
         }
         Update: {
-          base_price?: number
           condition_met_at?: string | null
           condition_type?: string
           created_at?: string | null
@@ -172,7 +164,6 @@ export type Database = {
           last_checked_at?: string | null
           period_days?: number
           subscription_id?: string
-          target_price?: number
           threshold?: number
           updated_at?: string | null
         }
@@ -186,59 +177,9 @@ export type Database = {
           },
         ]
       }
-      stock_prices: {
-        Row: {
-          change_amount: number
-          change_rate: number
-          close_price: number | null
-          created_at: string | null
-          high_price: number | null
-          id: string
-          low_price: number | null
-          market: string
-          open_price: number | null
-          price: number
-          price_date: string
-          stock_code: string
-          volume: number | null
-        }
-        Insert: {
-          change_amount: number
-          change_rate: number
-          close_price?: number | null
-          created_at?: string | null
-          high_price?: number | null
-          id?: string
-          low_price?: number | null
-          market: string
-          open_price?: number | null
-          price: number
-          price_date: string
-          stock_code: string
-          volume?: number | null
-        }
-        Update: {
-          change_amount?: number
-          change_rate?: number
-          close_price?: number | null
-          created_at?: string | null
-          high_price?: number | null
-          id?: string
-          low_price?: number | null
-          market?: string
-          open_price?: number | null
-          price?: number
-          price_date?: string
-          stock_code?: string
-          volume?: number | null
-        }
-        Relationships: []
-      }
       stock_subscriptions: {
         Row: {
-          added_at: string | null
           api_info: Json | null
-          base_price: number | null
           created_at: string | null
           id: string
           is_active: boolean | null
@@ -250,9 +191,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
-          added_at?: string | null
           api_info?: Json | null
-          base_price?: number | null
           created_at?: string | null
           id?: string
           is_active?: boolean | null
@@ -264,9 +203,7 @@ export type Database = {
           user_id: string
         }
         Update: {
-          added_at?: string | null
           api_info?: Json | null
-          base_price?: number | null
           created_at?: string | null
           id?: string
           is_active?: boolean | null
@@ -340,19 +277,16 @@ export type Database = {
 export type User = Database['public']['Tables']['users']['Row'];
 export type StockSubscription = Database['public']['Tables']['stock_subscriptions']['Row'];
 export type AlertCondition = Database['public']['Tables']['alert_conditions']['Row'];
-export type StockPrice = Database['public']['Tables']['stock_prices']['Row'];
 
 // Insert 타입들
 export type UserInsert = Database['public']['Tables']['users']['Insert'];
 export type StockSubscriptionInsert = Database['public']['Tables']['stock_subscriptions']['Insert'];
 export type AlertConditionInsert = Database['public']['Tables']['alert_conditions']['Insert'];
-export type StockPriceInsert = Database['public']['Tables']['stock_prices']['Insert'];
 
 // Update 타입들
 export type UserUpdate = Database['public']['Tables']['users']['Update'];
 export type StockSubscriptionUpdate = Database['public']['Tables']['stock_subscriptions']['Update'];
 export type AlertConditionUpdate = Database['public']['Tables']['alert_conditions']['Update'];
-export type StockPriceUpdate = Database['public']['Tables']['stock_prices']['Update'];
 
 // 주식 상세 정보 (구독 + 주가 + 조건들)
 export interface StockDetail {
@@ -368,7 +302,7 @@ export interface AddStockFormData {
 }
 
 export interface AddConditionFormData {
-  type: AlertCondition['condition_type'];
+  type: 'rise' | 'drop';
   threshold: number;
   period: number;
 }
@@ -383,7 +317,6 @@ export interface AlertHistory {
   condition_type: AlertCondition['condition_type'];
   threshold: number;
   period_days: number;
-  base_price: number;
   triggered_price: number;
   triggered_at: string;
   message: string;

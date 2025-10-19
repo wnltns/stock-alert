@@ -7,6 +7,7 @@ interface UseStockPricesReturn {
   loading: boolean;
   error: string | null;
   cached: boolean;
+  invalidateCache: () => Promise<void>;
 }
 
 export function useStockPrices(): UseStockPricesReturn {
@@ -115,6 +116,27 @@ export function useStockPrices(): UseStockPricesReturn {
     }
   };
 
+  // 캐시 무효화 함수
+  const invalidateCache = async () => {
+    try {
+      // 서버 사이드 캐시 무효화
+      const response = await fetch('/api/stocks/prices/invalidate', {
+        method: 'POST',
+      });
+      
+      if (response.ok) {
+        // 클라이언트 사이드 캐시 무효화
+        localStorage.removeItem('stock-prices-cache');
+        // 즉시 최신 데이터 가져오기
+        await fetchStockPrices();
+      } else {
+        console.error('캐시 무효화 실패');
+      }
+    } catch (error) {
+      console.error('캐시 무효화 요청 실패:', error);
+    }
+  };
+
   useEffect(() => {
     // 먼저 캐시된 데이터 로드 시도
     const hasCachedData = loadCachedData();
@@ -137,5 +159,6 @@ export function useStockPrices(): UseStockPricesReturn {
     loading,
     error,
     cached,
+    invalidateCache,
   };
 }

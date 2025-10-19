@@ -26,7 +26,7 @@ export function AlertHistoryDialog({
   const [readHistory, setReadHistory] = useState<Set<string>>(new Set());
 
   const getConditionTypeLabel = (type: AlertHistory['condition_type']) => {
-    const labels = {
+    const labels: Record<string, string> = {
       drop: '하락',
       rise: '상승',
     };
@@ -123,8 +123,8 @@ export function AlertHistoryDialog({
                             
                             <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
                               <div>
-                                <span>기준가:</span>
-                                <span className="ml-1 font-medium">{formatPrice(history.base_price)}</span>
+                                <span>등락률:</span>
+                                <span className="ml-1 font-medium">{history.threshold}%</span>
                               </div>
                               <div>
                                 <span>발생가:</span>
