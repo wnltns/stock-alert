@@ -134,6 +134,7 @@ export type Database = {
         Row: {
           condition_type: string
           created_at: string | null
+          cumulative_change_rate: number
           id: string
           is_active: boolean | null
           last_checked_at: string | null
@@ -147,6 +148,7 @@ export type Database = {
         Insert: {
           condition_type: string
           created_at?: string | null
+          cumulative_change_rate?: number
           id?: string
           is_active?: boolean | null
           last_checked_at?: string | null
@@ -160,6 +162,7 @@ export type Database = {
         Update: {
           condition_type?: string
           created_at?: string | null
+          cumulative_change_rate?: number
           id?: string
           is_active?: boolean | null
           last_checked_at?: string | null

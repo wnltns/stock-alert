@@ -140,6 +140,7 @@ export default function ConditionManagementPage() {
           period_days: updatedCondition.period_days,
           tracking_started_at: updatedCondition.tracking_started_at,
           tracking_ended_at: updatedCondition.tracking_ended_at,
+          cumulative_change_rate: 0.0, // 누적 변동률 초기화
           updated_at: new Date().toISOString(),
         })
         .eq('id', updatedCondition.id)
@@ -272,6 +273,7 @@ export default function ConditionManagementPage() {
               .update({
                 tracking_started_at: trackingStartedAt,
                 tracking_ended_at: trackingEndedAt,
+                cumulative_change_rate: 0.0, // 누적 변동률 초기화
                 updated_at: new Date().toISOString(),
               })
               .eq('id', condition.id)
@@ -330,6 +332,7 @@ export default function ConditionManagementPage() {
             .update({
               tracking_started_at: trackingStartedAt,
               tracking_ended_at: trackingEndedAt,
+              cumulative_change_rate: 0.0, // 누적 변동률 초기화
               updated_at: new Date().toISOString(),
             })
             .eq('id', conditionId)
