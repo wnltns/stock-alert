@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { TrendingUp, TrendingDown, Clock, CheckCircle, RefreshCw } from 'lucide-react';
 import { AlertHistory } from '@/types';
-import { useNotificationHistory, NotificationHistory } from '@/hooks/use-notification-history';
+import { useNotificationHistory } from '@/hooks/use-notification-history';
 import { supabase } from '@/lib/supabase/client';
 
 interface AlertHistoryDialogProps {
