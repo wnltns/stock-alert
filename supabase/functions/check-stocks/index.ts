@@ -318,7 +318,12 @@ async function checkAndProcessCondition(condition: AlertCondition): Promise<void
       return;
     }
 
-    // 조건 충족 시 알림 발송
+    // 초기화 조건 확인
+    const currentTime = new Date();
+    const trackingEndTime = new Date(condition.tracking_ended_at);
+    const isTrackingPeriodExpired = currentTime >= trackingEndTime;
+
+    // 조건 충족 시 알림 발송 및 초기화
     if (conditionMet) {
       console.log(`조건 충족: ${stockName} (${stockCode}) - ${condition.condition_type} ${condition.threshold}%`);
       
@@ -331,8 +336,8 @@ async function checkAndProcessCondition(condition: AlertCondition): Promise<void
       });
 
       if (notificationSent) {
-        // 알림 발송 후 조건 초기화
-        await supabase
+        // 알림 발송 후 조건 초기화 (새로운 추적 시작)
+        const { error: resetError } = await supabase
           .from('alert_conditions')
           .update({
             cumulative_change_rate: 0,
@@ -340,6 +345,30 @@ async function checkAndProcessCondition(condition: AlertCondition): Promise<void
             tracking_ended_at: new Date(Date.now() + condition.period_days * 24 * 60 * 60 * 1000).toISOString()
           })
           .eq('id', condition.id);
+
+        if (resetError) {
+          console.error('조건 초기화 오류:', resetError);
+        } else {
+          console.log(`조건 충족으로 초기화 완료: ${stockName} (${stockCode})`);
+        }
+      }
+    } else if (isTrackingPeriodExpired) {
+      // 추적 기간 만료 시 초기화 (조건 충족 여부와 관계없이)
+      console.log(`추적 기간 만료로 초기화: ${stockName} (${stockCode}) - 현재 누적: ${newCumulativeRate.toFixed(2)}%`);
+      
+      const { error: resetError } = await supabase
+        .from('alert_conditions')
+        .update({
+          cumulative_change_rate: 0,
+          tracking_started_at: new Date().toISOString(),
+          tracking_ended_at: new Date(Date.now() + condition.period_days * 24 * 60 * 60 * 1000).toISOString()
+        })
+        .eq('id', condition.id);
+
+      if (resetError) {
+        console.error('추적 기간 만료 초기화 오류:', resetError);
+      } else {
+        console.log(`추적 기간 만료로 초기화 완료: ${stockName} (${stockCode})`);
       }
     } else {
       console.log(`조건 미충족: ${stockName} (${stockCode}) - 현재 누적: ${newCumulativeRate.toFixed(2)}%`);
@@ -366,7 +395,7 @@ Deno.serve(async (req: Request) => {
 
     console.log(`${nationType} 주식 모니터링 시작`);
 
-    // 활성화된 알림 조건 조회
+    // 활성화된 알림 조건 조회 (추적이 시작된 조건들)
     const { data: conditions, error: conditionsError } = await supabase
       .from('alert_conditions')
       .select(`
@@ -388,7 +417,7 @@ Deno.serve(async (req: Request) => {
       `)
       .eq('is_active', true)
       .eq('stock_subscriptions.nation_type', nationType)
-      .lte('tracking_ended_at', new Date().toISOString()); // 추적 기간이 끝난 조건들
+      .lte('tracking_started_at', new Date().toISOString()); // 추적이 시작된 조건들만
 
     if (conditionsError) {
       console.error('조건 조회 오류:', conditionsError);
