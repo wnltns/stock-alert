@@ -204,22 +204,23 @@ export function AlertHistoryDialog({
                   ? notification.delivery_confirmed_at 
                   : notification.is_read;
                 
+                // 타입 안전한 속성 접근
                 const conditionType = 'alert_conditions' in notification 
                   ? notification.alert_conditions?.condition_type 
-                  : notification.condition_type;
+                  : ('condition_type' in notification ? notification.condition_type : 'rise');
                 const threshold = 'alert_conditions' in notification 
                   ? notification.alert_conditions?.threshold 
-                  : notification.threshold;
+                  : ('threshold' in notification ? notification.threshold : 0);
                 const periodDays = 'alert_conditions' in notification 
                   ? notification.alert_conditions?.period_days 
-                  : notification.period_days;
+                  : ('period_days' in notification ? notification.period_days : 1);
                 
                 const stockName = 'stock_subscriptions' in notification 
                   ? notification.stock_subscriptions?.stock_name 
-                  : notification.stock_name;
+                  : ('stock_name' in notification ? notification.stock_name : '알 수 없음');
                 const sentAt = 'sent_at' in notification 
                   ? notification.sent_at 
-                  : notification.triggered_at;
+                  : ('triggered_at' in notification ? notification.triggered_at : null);
                 
                 return (
                   <Card key={notification.id} className={`transition-all duration-200 ${!isRead ? 'ring-2 ring-primary/20 bg-primary/5' : ''}`}>
