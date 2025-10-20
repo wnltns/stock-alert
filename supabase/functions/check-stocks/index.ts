@@ -1,5 +1,5 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { createClient } from 'jsr:@supabase/supabase-js@2';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 // Supabase 클라이언트 초기화
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!;

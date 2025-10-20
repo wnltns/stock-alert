@@ -206,17 +206,17 @@ export function AlertHistoryDialog({
                 
                 // 타입 안전한 속성 접근
                 const conditionType = 'alert_conditions' in notification 
-                  ? notification.alert_conditions?.condition_type 
+                  ? (notification.alert_conditions?.condition_type || 'rise')
                   : ('condition_type' in notification ? notification.condition_type : 'rise');
                 const threshold = 'alert_conditions' in notification 
-                  ? notification.alert_conditions?.threshold 
+                  ? (notification.alert_conditions?.threshold || 0)
                   : ('threshold' in notification ? notification.threshold : 0);
                 const periodDays = 'alert_conditions' in notification 
-                  ? notification.alert_conditions?.period_days 
+                  ? (notification.alert_conditions?.period_days || 1)
                   : ('period_days' in notification ? notification.period_days : 1);
                 
                 const stockName = 'stock_subscriptions' in notification 
-                  ? notification.stock_subscriptions?.stock_name 
+                  ? (notification.stock_subscriptions?.stock_name || '알 수 없음')
                   : ('stock_name' in notification ? notification.stock_name : '알 수 없음');
                 const sentAt = 'sent_at' in notification 
                   ? notification.sent_at 
@@ -260,10 +260,10 @@ export function AlertHistoryDialog({
                               </div>
                             </div>
                             
-                            <div className="flex items-center gap-1 mt-2 text-xs text-muted-foreground">
-                              <Clock className="h-3 w-3" />
-                              {formatDateTime(new Date(sentAt))}
-                            </div>
+                              <div className="flex items-center gap-1 mt-2 text-xs text-muted-foreground">
+                                <Clock className="h-3 w-3" />
+                                {sentAt ? formatDateTime(new Date(sentAt)) : '시간 정보 없음'}
+                              </div>
                           </div>
                         </div>
                         

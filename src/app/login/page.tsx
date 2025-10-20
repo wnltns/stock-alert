@@ -1,13 +1,13 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/hooks/use-auth'
 import { LoginButton } from '@/components/auth/login-button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { AlertCircle } from 'lucide-react'
 
-export default function LoginPage() {
+function LoginContent() {
   const { isAuthenticated, loading, user } = useAuth()
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -98,5 +98,20 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+          <p className="mt-2 text-sm text-muted-foreground">로딩 중...</p>
+        </div>
+      </div>
+    }>
+      <LoginContent />
+    </Suspense>
   )
 }
