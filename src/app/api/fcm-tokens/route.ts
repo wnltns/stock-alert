@@ -149,9 +149,9 @@ export async function DELETE(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { token } = body;
+    const { token: fcmToken } = body;
 
-    if (!token) {
+    if (!fcmToken) {
       return NextResponse.json(
         { error: 'FCM 토큰이 필요합니다.' },
         { status: 400 }
@@ -163,7 +163,7 @@ export async function DELETE(request: NextRequest) {
       .from('fcm_tokens')
       .update({ is_active: false })
       .eq('user_id', user.id)
-      .eq('token', token);
+      .eq('token', fcmToken);
 
     if (updateError) {
       console.error('FCM 토큰 삭제 오류:', updateError);
