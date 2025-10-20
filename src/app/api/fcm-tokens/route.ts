@@ -36,12 +36,12 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const { 
-      token, 
+      token: fcmToken, 
       deviceType = 'web',
       deviceInfo = null 
     } = body;
 
-    if (!token) {
+    if (!fcmToken) {
       return NextResponse.json(
         { error: 'FCM 토큰이 필요합니다.' },
         { status: 400 }
@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
       .from('fcm_tokens')
       .select('id, is_active')
       .eq('user_id', user.id)
-      .eq('token', token)
+      .eq('token', fcmToken)
       .single();
 
     if (existingToken) {
@@ -87,7 +87,7 @@ export async function POST(request: NextRequest) {
         .from('fcm_tokens')
         .insert({
           user_id: user.id,
-          token,
+          token: fcmToken,
           device_type: deviceType,
           device_info: deviceInfo,
           is_active: true,

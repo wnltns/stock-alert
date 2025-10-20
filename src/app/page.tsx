@@ -13,6 +13,7 @@ import { CacheInvalidateButton } from '@/components/ui/cache-invalidate-button';
 import { supabase } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Play } from 'lucide-react';
+import FcmAutoRegister from '@/components/auth/fcm-auto-register';
 
 export default function Home() {
   const router = useRouter();
@@ -90,6 +91,7 @@ export default function Home() {
     <AuthGuard>
       <main className="min-h-screen bg-background transition-colors duration-300">
         <div className="container mx-auto px-4 py-8">
+          <FcmAutoRegister />
           {/* 사용자 드롭다운 */}
           <div className="flex justify-start items-center mb-6">
             <UserDropdown />

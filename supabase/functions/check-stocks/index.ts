@@ -5,6 +5,9 @@ import { createClient } from 'jsr:@supabase/supabase-js@2';
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
+const firebaseProjectId = Deno.env.get('FIREBASE_PROJECT_ID');
+const firebaseClientEmail = Deno.env.get('FIREBASE_CLIENT_EMAIL');
+const firebasePrivateKey = Deno.env.get('FIREBASE_PRIVATE_KEY');
 
 interface StockApiResponse {
   stockEndType: string;
@@ -40,6 +43,142 @@ interface NotificationData {
   condition_id: string;
   triggered_price: number;
   cumulative_change_rate: number;
+}
+
+// -----------------------------
+// Firebase HTTP v1 Auth Helpers
+// -----------------------------
+const OAUTH_TOKEN_URI = 'https://oauth2.googleapis.com/token';
+const FCM_SCOPE = 'https://www.googleapis.com/auth/firebase.messaging';
+
+let cachedAccessToken: { token: string; expiresAtMs: number } | null = null;
+
+function base64UrlEncode(input: ArrayBuffer | Uint8Array | string): string {
+  let bytes: Uint8Array;
+  if (typeof input === 'string') {
+    bytes = new TextEncoder().encode(input);
+  } else if (input instanceof ArrayBuffer) {
+    bytes = new Uint8Array(input);
+  } else {
+    bytes = input;
+  }
+  let binary = '';
+  for (let i = 0; i < bytes.byteLength; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  const base64 = btoa(binary);
+  return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+}
+
+function parsePkcs8Pem(pem: string): ArrayBuffer {
+  const cleaned = pem
+    .replace('-----BEGIN PRIVATE KEY-----', '')
+    .replace('-----END PRIVATE KEY-----', '')
+    .replace(/\n/g, '')
+    .replace(/\r/g, '')
+    .trim();
+  const binary = atob(cleaned);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes.buffer;
+}
+
+async function importPrivateKey(pem: string): Promise<CryptoKey> {
+  const keyData = parsePkcs8Pem(pem);
+  return await crypto.subtle.importKey(
+    'pkcs8',
+    keyData,
+    { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
+    false,
+    ['sign']
+  );
+}
+
+async function createJwt(clientEmail: string, scope: string): Promise<string> {
+  const header = { alg: 'RS256', typ: 'JWT' };
+  const nowSeconds = Math.floor(Date.now() / 1000);
+  const payload = {
+    iss: clientEmail,
+    scope,
+    aud: OAUTH_TOKEN_URI,
+    iat: nowSeconds,
+    exp: nowSeconds + 3600,
+  } as Record<string, unknown>;
+
+  const encodedHeader = base64UrlEncode(JSON.stringify(header));
+  const encodedPayload = base64UrlEncode(JSON.stringify(payload));
+  const unsignedToken = `${encodedHeader}.${encodedPayload}`;
+
+  if (!firebasePrivateKey) {
+    throw new Error('FIREBASE_PRIVATE_KEY 환경 변수가 설정되지 않았습니다.');
+  }
+
+  // Supabase 시크릿에 저장할 때 \n 이스케이프가 있을 수 있으므로 복원
+  const normalizedPem = firebasePrivateKey.replace(/\\n/g, '\n');
+  const privateKey = await importPrivateKey(normalizedPem);
+  const signature = await crypto.subtle.sign(
+    'RSASSA-PKCS1-v1_5',
+    privateKey,
+    new TextEncoder().encode(unsignedToken)
+  );
+  const encodedSignature = base64UrlEncode(signature);
+  return `${unsignedToken}.${encodedSignature}`;
+}
+
+async function getAccessToken(): Promise<string> {
+  const now = Date.now();
+  if (cachedAccessToken && cachedAccessToken.expiresAtMs - 60_000 > now) {
+    return cachedAccessToken.token;
+  }
+  if (!firebaseClientEmail) {
+    throw new Error('FIREBASE_CLIENT_EMAIL 환경 변수가 설정되지 않았습니다.');
+  }
+  const assertion = await createJwt(firebaseClientEmail, FCM_SCOPE);
+  const res = await fetch(OAUTH_TOKEN_URI, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+      assertion,
+    }),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`OAuth 토큰 발급 실패: ${res.status} ${text}`);
+  }
+  const json = await res.json() as { access_token: string; expires_in: number };
+  cachedAccessToken = {
+    token: json.access_token,
+    expiresAtMs: now + (json.expires_in * 1000),
+  };
+  return json.access_token;
+}
+
+async function sendFcmV1(token: string, title: string, body: string): Promise<void> {
+  if (!firebaseProjectId) {
+    throw new Error('FIREBASE_PROJECT_ID 환경 변수가 설정되지 않았습니다.');
+  }
+  const accessToken = await getAccessToken();
+  const endpoint = `https://fcm.googleapis.com/v1/projects/${firebaseProjectId}/messages:send`;
+  const res = await fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      message: {
+        token,
+        notification: { title, body },
+      },
+    }),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`FCM 전송 실패: ${res.status} ${text}`);
+  }
 }
 
 /**
@@ -117,11 +256,16 @@ async function sendNotification(notificationData: NotificationData): Promise<boo
       return true; // 알림 기록은 저장되었으므로 성공으로 처리
     }
 
-    // FCM 알림 발송 (실제 구현 시 Firebase Admin SDK 사용)
-    console.log('FCM 알림 발송:', {
-      tokens: fcmTokens.map(t => t.token),
-      notificationData
-    });
+    // FCM HTTP v1 발송
+    const title = '주가 알림';
+    const body = `누적 변동률 ${notificationData.cumulative_change_rate.toFixed(2)}%`;
+    for (const t of fcmTokens) {
+      try {
+        await sendFcmV1(t.token, title, body);
+      } catch (e) {
+        console.error('FCM 전송 오류:', e);
+      }
+    }
 
     return true;
   } catch (error) {
