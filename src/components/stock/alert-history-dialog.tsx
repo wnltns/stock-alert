@@ -193,9 +193,11 @@ export function AlertHistoryDialog({
           ) : (
             allNotifications
               .sort((a, b) => {
-                const dateA = 'sent_at' in a ? a.sent_at : a.triggered_at;
-                const dateB = 'sent_at' in b ? b.sent_at : b.triggered_at;
-                return new Date(dateB).getTime() - new Date(dateA).getTime();
+                const rawA = ('sent_at' in a ? a.sent_at : (a as any).triggered_at) as string | null | undefined;
+                const rawB = ('sent_at' in b ? b.sent_at : (b as any).triggered_at) as string | null | undefined;
+                const timeA = rawA ? new Date(rawA).getTime() : 0;
+                const timeB = rawB ? new Date(rawB).getTime() : 0;
+                return timeB - timeA;
               })
               .map((notification) => {
                 const isRead = 'delivery_confirmed_at' in notification 
