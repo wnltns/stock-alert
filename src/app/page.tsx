@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { StockCard } from '@/components/stock/stock-card';
 import { AddStockDialog } from '@/components/stock/add-stock-dialog';
-import { StockDetail, AddStockFormData, StockSubscription, Notification } from '@/types';
+import { StockDetail, AddStockFormData, StockSubscription } from '@/types';
 import { useAuth } from '@/hooks/use-auth';
 import { useStockPrices } from '@/hooks/use-stock-prices';
 import { AuthGuard } from '@/components/auth/auth-guard';
@@ -16,7 +16,6 @@ import { Play } from 'lucide-react';
 
 export default function Home() {
   const router = useRouter();
-  const [notifications, setNotifications] = useState<Notification[]>([]);
   const { user } = useAuth();
   
   // 실시간 주가 데이터를 가져오는 훅 사용
@@ -25,35 +24,11 @@ export default function Home() {
     loading, 
     error, 
     cached,
+    lastFetchedAt,
     invalidateCache,
     refreshStocks
   } = useStockPrices();
 
-  // notification 데이터 가져오기
-  useEffect(() => {
-    const fetchNotifications = async () => {
-      if (!user) return;
-      
-      try {
-        const { data, error } = await supabase
-          .from('notifications')
-          .select('*')
-          .eq('user_id', user.id)
-          .order('created_at', { ascending: false });
-        
-        if (error) {
-          console.error('알림 데이터 가져오기 실패:', error);
-          return;
-        }
-        
-        setNotifications(data || []);
-      } catch (error) {
-        console.error('알림 데이터 가져오기 오류:', error);
-      }
-    };
-
-    fetchNotifications();
-  }, [user]);
 
   const handleAddStock = async (data: AddStockFormData) => {
     // 주식 등록 완료
@@ -136,34 +111,47 @@ export default function Home() {
             
 
             <div className="mb-8">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-2xl font-semibold">
-                  주식 구독
-                </h2>
-                <div className="flex items-center gap-2">
-                  {cached && (
-                    <>
-                      <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded">
-                        캐시됨
-                      </span>
-                      <CacheInvalidateButton onInvalidate={handleCacheInvalidate} />
-                    </>
-                  )}
+              <div className="mb-4">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                  <h2 className="text-xl sm:text-2xl font-semibold">
+                    구독한 주식
+                  </h2>
                   
-                  {/* 개발자 테스트 버튼 */}
-                  {process.env.NODE_ENV === 'development' && (
-                    <div className="flex items-center gap-2 ml-4">
-                      <Button
-                        variant="default"
-                        size="sm"
-                        onClick={handleTestMonitoring}
-                        className="text-xs"
-                      >
-                        <Play className="w-3 h-3 mr-1" />
-                        테스트
-                      </Button>
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                    {/* 마지막 데이터 조회 시간 표시 */}
+                    {lastFetchedAt && (
+                      <span className="text-xs text-muted-foreground">
+                        마지막 조회: {lastFetchedAt.toLocaleTimeString('ko-KR', { 
+                          hour: '2-digit', 
+                          minute: '2-digit'
+                        })}
+                      </span>
+                    )}
+
+                    <div className="flex items-center gap-2">
+                      {cached && (
+                        <>
+                          <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded">
+                            캐시됨
+                          </span>
+                          <CacheInvalidateButton onInvalidate={handleCacheInvalidate} />
+                        </>
+                      )}
+                      
+                      {/* 개발자 테스트 버튼 */}
+                      {process.env.NODE_ENV === 'development' && (
+                        <Button
+                          variant="default"
+                          size="sm"
+                          onClick={handleTestMonitoring}
+                          className="text-xs"
+                        >
+                          <Play className="w-3 h-3 mr-1" />
+                          테스트
+                        </Button>
+                      )}
                     </div>
-                  )}
+                  </div>
                 </div>
               </div>
               
@@ -197,7 +185,6 @@ export default function Home() {
                         onViewDetails={handleViewDetails}
                         onAddCondition={handleAddCondition}
                         alertHistory={[]}
-                        notifications={notifications}
                       />
                     );
                   })}

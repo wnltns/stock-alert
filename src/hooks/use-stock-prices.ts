@@ -7,6 +7,7 @@ interface UseStockPricesReturn {
   loading: boolean;
   error: string | null;
   cached: boolean;
+  lastFetchedAt: Date | null;
   invalidateCache: () => Promise<void>;
   refreshStocks: () => Promise<void>;
 }
@@ -16,20 +17,23 @@ export function useStockPrices(): UseStockPricesReturn {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [cached, setCached] = useState(false);
+  const [lastFetchedAt, setLastFetchedAt] = useState<Date | null>(null);
 
   // localStorage에서 캐시된 데이터 로드
   const loadCachedData = () => {
     try {
       const cachedData = localStorage.getItem('stock-prices-cache');
+      
       if (cachedData) {
         const { data, timestamp } = JSON.parse(cachedData);
         const now = Date.now();
         const cacheAge = now - timestamp;
         
-        // 5분 이내의 캐시만 사용
-        if (cacheAge < 5 * 60 * 1000) {
+        // 1시간 이내의 캐시만 사용
+        if (cacheAge < 60 * 60 * 1000) {
           setStocks(data);
           setCached(true);
+          setLastFetchedAt(new Date(timestamp));
           return true;
         }
       }
@@ -105,8 +109,10 @@ export function useStockPrices(): UseStockPricesReturn {
 
         setStocks(stocksWithConditions);
         saveCachedData(stocksWithConditions);
+        setLastFetchedAt(new Date());
       } else {
         setStocks([]);
+        setLastFetchedAt(new Date());
       }
 
     } catch (err) {
@@ -176,13 +182,6 @@ export function useStockPrices(): UseStockPricesReturn {
     if (!hasCachedData) {
       fetchStockPrices();
     }
-    
-    // 5분마다 데이터 업데이트 (캐시된 데이터가 있어도)
-    const interval = setInterval(() => {
-      fetchStockPrices();
-    }, 5 * 60 * 1000);
-    
-    return () => clearInterval(interval);
   }, []);
 
   return {
@@ -190,6 +189,7 @@ export function useStockPrices(): UseStockPricesReturn {
     loading,
     error,
     cached,
+    lastFetchedAt,
     invalidateCache,
     refreshStocks,
   };

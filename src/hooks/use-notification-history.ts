@@ -172,12 +172,12 @@ export function useNotificationHistory(): UseNotificationHistoryReturn {
     setCurrentOffset(0);
   }, []);
 
-  // 컴포넌트 마운트 시 초기 데이터 로드
-  useEffect(() => {
-    if (user) {
-      fetchNotifications(undefined, true);
-    }
-  }, [user]); // fetchNotifications를 의존성에서 제거
+  // 컴포넌트 마운트 시 초기 데이터 로드 제거
+  // useEffect(() => {
+  //   if (user) {
+  //     fetchNotifications(undefined, true);
+  //   }
+  // }, [user]);
 
   return {
     notifications,

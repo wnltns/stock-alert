@@ -168,28 +168,9 @@ async function getCachedStockPrices(userId: string): Promise<StockDetail[]> {
   return stockDetails;
 }
 
-// 캐시 설정 함수
+// 캐시 설정 함수 - 1시간 캐시
 function getCacheConfig() {
-  const now = new Date();
-  const hour = now.getHours();
-  const day = now.getDay(); // 0: 일요일, 6: 토요일
-  
-  // 주말 체크
-  const isWeekend = day === 0 || day === 6;
-  
-  // 거래 시간 체크 (한국 시간 기준)
-  const isTradingHours = hour >= 9 && hour < 16;
-  
-  if (isWeekend) {
-    // 주말: 1시간 캐시
-    return { revalidate: 3600, tags: ['stock-prices'] };
-  } else if (isTradingHours) {
-    // 거래 시간: 30초 캐시
-    return { revalidate: 30, tags: ['stock-prices'] };
-  } else {
-    // 거래 종료 후: 5분 캐시
-    return { revalidate: 300, tags: ['stock-prices'] };
-  }
+  return { revalidate: 3600, tags: ['stock-prices'] };
 }
 
 // 캐시된 주가 데이터 조회 함수 (unstable_cache 적용)

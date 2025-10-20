@@ -117,7 +117,7 @@ export function AddStockDialog({ onAddStock }: AddStockDialogProps) {
             </label>
             <Input
               id="stockUrl"
-              placeholder="https://m.stock.naver.com/domestic/stock/005930/total"
+              placeholder="네이버페이 증권 페이지의 URL을 입력해주세요."
               value={stockUrl}
               onChange={(e) => setStockUrl(e.target.value)}
               className={`transition-colors ${!isValidStockUrl(stockUrl) && stockUrl ? 'border-red-500 dark:border-red-400' : ''}`}
@@ -128,7 +128,9 @@ export function AddStockDialog({ onAddStock }: AddStockDialogProps) {
               </p>
             )}
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-10">
-              * 네이버페이 증권 페이지의 URL을 입력해주세요.
+              <a href="https://m.stock.naver.com/domestic/home/discussion" target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:text-blue-600">
+                네이버 증권 열기
+              </a>
             </p>
           </div>
 

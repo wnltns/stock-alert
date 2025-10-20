@@ -108,11 +108,6 @@ export function StockCard({ stock, onViewDetails, onAddCondition, alertHistory =
             <Badge variant={"outline"}>
               {subscription.is_active ? "ON" : "OFF"}
             </Badge>
-            {conditions.length > 0 && (
-              <div className="text-xs text-muted-foreground">
-                {conditions.filter(condition => isConditionMet(condition)).length}개 충족
-              </div>
-            )}
           </div>
         </div>
       </CardHeader>
@@ -120,7 +115,7 @@ export function StockCard({ stock, onViewDetails, onAddCondition, alertHistory =
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2">
             {getChangeIcon()}
-            <span className="text-2xl font-bold">{formatPrice(stockInfo.currentPrice)}</span>
+            <span className="text-xl sm:text-2xl font-bold">{formatPrice(stockInfo.currentPrice)}</span>
           </div>
           <div className={`text-right ${getChangeColor()}`}>
             <div className="text-sm font-medium">
@@ -145,8 +140,20 @@ export function StockCard({ stock, onViewDetails, onAddCondition, alertHistory =
                 const isMet = isConditionMet(condition);
                 
                 return (
-                  <div key={condition.id} className="flex items-start justify-between text-xs bg-muted/50 dark:bg-muted/30 p-2 rounded transition-colors gap-2">
-                    <span className="flex-1 leading-tight">{typeLabels[condition.condition_type]} {condition.threshold}% ({condition.period_days}일)</span>
+                  <div key={condition.id} className="flex items-center justify-between text-xs bg-muted/50 dark:bg-muted/30 p-2 rounded transition-colors gap-2">
+                    <div className="flex-1 leading-tight">
+                      <div className="flex flex-wrap items-center gap-1 sm:gap-2">
+                        <span className="break-words">{typeLabels[condition.condition_type]} {condition.threshold}% ({condition.period_days}일)</span>
+                        {condition.cumulative_change_rate !== undefined && condition.cumulative_change_rate !== null && (
+                          <>
+                            <span className="text-muted-foreground">•</span>
+                            <span className="text-muted-foreground whitespace-nowrap">
+                              {condition.cumulative_change_rate > 0 ? '+' : ''}{condition.cumulative_change_rate.toFixed(2)}%
+                            </span>
+                          </>
+                        )}
+                      </div>
+                    </div>
                     <Badge variant={isMet ? "default" : "outline"} className={`text-xs flex-shrink-0 ${isMet ? "bg-green-500" : ""}`}>
                       {isMet ? "충족" : "대기"}
                     </Badge>
