@@ -263,25 +263,6 @@ export function useFcmAutoRegistration(): {
           setError('FCM 토큰을 가져올 수 없습니다.');
         }
 
-        // 토큰 새로고침 이벤트 리스너
-        messaging.onTokenRefresh(async () => {
-          try {
-            const newToken = await messaging.getToken({
-              vapidKey: process.env.NEXT_PUBLIC_FCM_VAPID_KEY
-            });
-            
-            if (newToken) {
-              await registerToken(newToken, 'web', {
-                userAgent: navigator.userAgent,
-                platform: navigator.platform,
-                language: navigator.language
-              });
-              console.log('FCM 토큰이 새로고침되었습니다.');
-            }
-          } catch (err) {
-            console.error('FCM 토큰 새로고침 오류:', err);
-          }
-        });
 
         // 메시지 수신 이벤트 리스너
         messaging.onMessage((payload: any) => {
