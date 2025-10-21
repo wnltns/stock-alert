@@ -48,6 +48,9 @@ interface NotificationData {
   condition_id: string;
   triggered_price: number;
   cumulative_change_rate: number;
+  stock_name: string;
+  stock_code: string;
+  daily_change_rate: number;
 }
 
 // -----------------------------
@@ -260,7 +263,7 @@ async function sendNotification(notificationData: NotificationData): Promise<boo
 
     // FCM HTTP v1 발송
     const title = '주가 알림';
-    const body = `누적 변동률 ${notificationData.cumulative_change_rate.toFixed(2)}%`;
+    const body = `${notificationData.stock_name} (${notificationData.daily_change_rate >= 0 ? '+' : ''}${notificationData.daily_change_rate.toFixed(2)}%)`;
     for (const t of fcmTokens) {
       try {
         await sendFcmV1(t.token, title, body);
@@ -334,7 +337,10 @@ async function checkAndProcessCondition(condition: AlertCondition): Promise<void
         subscription_id: condition.subscription_id,
         condition_id: condition.id,
         triggered_price: currentPrice,
-        cumulative_change_rate: newCumulativeRate
+        cumulative_change_rate: newCumulativeRate,
+        stock_name: stockName,
+        stock_code: stockCode,
+        daily_change_rate: dailyChangeRate
       });
 
       if (notificationSent) {
