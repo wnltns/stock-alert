@@ -34,6 +34,11 @@ interface AlertCondition {
     stock_name: string;
     nation_type: string;
     user_id: string;
+    api_info: {
+      endpoint: string;
+      url_type: string;
+      last_successful_call: string;
+    };
   };
 }
 
@@ -182,18 +187,15 @@ async function sendFcmV1(token: string, title: string, body: string): Promise<vo
 }
 
 /**
- * 주식 가격 조회 함수
+ * 주식 가격 조회 함수 (api_info.endpoint 사용)
  */
-async function fetchStockPrice(stockCode: string): Promise<StockApiResponse | null> {
+async function fetchStockPrice(apiEndpoint: string, stockCode: string): Promise<StockApiResponse | null> {
   try {
-    const response = await fetch(
-      `https://polling.finance.naver.com/api/realtime/domestic/stock/${stockCode}`,
-      {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-        }
+    const response = await fetch(apiEndpoint, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
       }
-    );
+    });
 
     if (!response.ok) {
       console.error(`주식 가격 조회 실패: ${stockCode}, 상태: ${response.status}`);
@@ -281,20 +283,34 @@ async function checkAndProcessCondition(condition: AlertCondition): Promise<void
   try {
     const stockCode = condition.stock_subscriptions.stock_code;
     const stockName = condition.stock_subscriptions.stock_name;
+    const apiEndpoint = condition.stock_subscriptions.api_info.endpoint;
     
-    // 주식 가격 조회
-    const stockData = await fetchStockPrice(stockCode);
+    console.log(`주식 가격 조회 시작: ${stockName} (${stockCode}) - ${apiEndpoint}`);
+    
+    // 주식 가격 조회 (api_info.endpoint 사용)
+    const stockData = await fetchStockPrice(apiEndpoint, stockCode);
     if (!stockData) {
       console.error(`주식 가격 조회 실패: ${stockCode}`);
       return;
     }
 
+    console.log(`주식 데이터 조회 성공: ${stockName}`, {
+      closePrice: stockData.closePrice,
+      fluctuationsRatio: stockData.fluctuationsRatio
+    });
+
     const normalizedData = normalizeStockData(stockData);
     const currentPrice = normalizedData.currentPrice;
     const dailyChangeRate = normalizedData.changeRate;
 
-    // 누적 변동률 업데이트
-    const newCumulativeRate = condition.cumulative_change_rate + dailyChangeRate;
+    // 누적 변동률 업데이트 (fluctuationsRatio를 기존 cumulative_change_rate에 합산)
+    const newCumulativeRate = (condition.cumulative_change_rate || 0) + dailyChangeRate;
+    
+    console.log(`누적 변동률 계산: ${stockName}`, {
+      previousRate: condition.cumulative_change_rate || 0,
+      dailyChange: dailyChangeRate,
+      newCumulativeRate: newCumulativeRate
+    });
     
     // 조건 충족 여부 확인
     let conditionMet = false;
@@ -304,24 +320,10 @@ async function checkAndProcessCondition(condition: AlertCondition): Promise<void
       conditionMet = true;
     }
 
-    // 누적 변동률 업데이트
-    const { error: updateError } = await supabase
-      .from('alert_conditions')
-      .update({
-        cumulative_change_rate: newCumulativeRate,
-        last_checked_at: new Date().toISOString()
-      })
-      .eq('id', condition.id);
-
-    if (updateError) {
-      console.error('조건 업데이트 오류:', updateError);
-      return;
-    }
-
-    // 초기화 조건 확인
-    const currentTime = new Date();
-    const trackingEndTime = new Date(condition.tracking_ended_at);
-    const isTrackingPeriodExpired = currentTime >= trackingEndTime;
+    // 현재 날짜와 추적 종료일 비교 (시간 제외, 일까지만 비교)
+    const currentDate = new Date();
+    const trackingEndDate = new Date(condition.tracking_ended_at);
+    const isTrackingPeriodExpired = isSameDate(currentDate, trackingEndDate);
 
     // 조건 충족 시 알림 발송 및 초기화
     if (conditionMet) {
@@ -336,13 +338,18 @@ async function checkAndProcessCondition(condition: AlertCondition): Promise<void
       });
 
       if (notificationSent) {
-        // 알림 발송 후 조건 초기화 (새로운 추적 시작)
+        // 알림 발송 후 조건 초기화
+        const resetDate = new Date();
+        const newTrackingEndDate = new Date(resetDate);
+        newTrackingEndDate.setDate(resetDate.getDate() + condition.period_days);
+        
         const { error: resetError } = await supabase
           .from('alert_conditions')
           .update({
             cumulative_change_rate: 0,
-            tracking_started_at: new Date().toISOString(),
-            tracking_ended_at: new Date(Date.now() + condition.period_days * 24 * 60 * 60 * 1000).toISOString()
+            tracking_started_at: resetDate.toISOString(),
+            tracking_ended_at: newTrackingEndDate.toISOString(),
+            last_checked_at: new Date().toISOString()
           })
           .eq('id', condition.id);
 
@@ -356,12 +363,17 @@ async function checkAndProcessCondition(condition: AlertCondition): Promise<void
       // 추적 기간 만료 시 초기화 (조건 충족 여부와 관계없이)
       console.log(`추적 기간 만료로 초기화: ${stockName} (${stockCode}) - 현재 누적: ${newCumulativeRate.toFixed(2)}%`);
       
+      const resetDate = new Date();
+      const newTrackingEndDate = new Date(resetDate);
+      newTrackingEndDate.setDate(resetDate.getDate() + condition.period_days);
+      
       const { error: resetError } = await supabase
         .from('alert_conditions')
         .update({
           cumulative_change_rate: 0,
-          tracking_started_at: new Date().toISOString(),
-          tracking_ended_at: new Date(Date.now() + condition.period_days * 24 * 60 * 60 * 1000).toISOString()
+          tracking_started_at: resetDate.toISOString(),
+          tracking_ended_at: newTrackingEndDate.toISOString(),
+          last_checked_at: new Date().toISOString()
         })
         .eq('id', condition.id);
 
@@ -371,12 +383,34 @@ async function checkAndProcessCondition(condition: AlertCondition): Promise<void
         console.log(`추적 기간 만료로 초기화 완료: ${stockName} (${stockCode})`);
       }
     } else {
-      console.log(`조건 미충족: ${stockName} (${stockCode}) - 현재 누적: ${newCumulativeRate.toFixed(2)}%`);
+      // 조건 미충족 시 누적 변동률만 업데이트
+      const { error: updateError } = await supabase
+        .from('alert_conditions')
+        .update({
+          cumulative_change_rate: newCumulativeRate,
+          last_checked_at: new Date().toISOString()
+        })
+        .eq('id', condition.id);
+
+      if (updateError) {
+        console.error('조건 업데이트 오류:', updateError);
+      } else {
+        console.log(`조건 미충족: ${stockName} (${stockCode}) - 현재 누적: ${newCumulativeRate.toFixed(2)}%`);
+      }
     }
 
   } catch (error) {
     console.error('조건 처리 오류:', error);
   }
+}
+
+/**
+ * 날짜 비교 함수 (시간 제외, 일(day)까지만 비교)
+ */
+function isSameDate(date1: Date, date2: Date): boolean {
+  return date1.getFullYear() === date2.getFullYear() &&
+         date1.getMonth() === date2.getMonth() &&
+         date1.getDate() === date2.getDate();
 }
 
 /**
@@ -393,9 +427,37 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    console.log(`${nationType} 주식 모니터링 시작`);
+    // 시간대별 필터링 로직
+    const now = new Date();
+    const kstTime = new Date(now.toLocaleString("en-US", {timeZone: "Asia/Seoul"}));
+    const currentHour = kstTime.getHours();
+    
+    // 국내 주식은 오전 9시에만, 해외 주식은 오후 11시에만 모니터링
+    if (nationType === 'KOR' && currentHour !== 9) {
+      console.log(`국내 주식 모니터링 시간이 아닙니다. 현재 시간: ${currentHour}시 (KST)`);
+      return new Response(
+        JSON.stringify({ 
+          message: `국내 주식 모니터링 시간이 아닙니다. 현재 시간: ${currentHour}시 (KST)`,
+          skipped: true 
+        }),
+        { headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+    
+    if (nationType === 'FOREIGN' && currentHour !== 23) {
+      console.log(`해외 주식 모니터링 시간이 아닙니다. 현재 시간: ${currentHour}시 (KST)`);
+      return new Response(
+        JSON.stringify({ 
+          message: `해외 주식 모니터링 시간이 아닙니다. 현재 시간: ${currentHour}시 (KST)`,
+          skipped: true 
+        }),
+        { headers: { 'Content-Type': 'application/json' } }
+      );
+    }
 
-    // 활성화된 알림 조건 조회 (추적이 시작된 조건들)
+    console.log(`${nationType} 주식 모니터링 시작 (${currentHour}시 KST)`);
+
+    // 활성화된 알림 조건만 조회 (is_active = true)
     const { data: conditions, error: conditionsError } = await supabase
       .from('alert_conditions')
       .select(`
@@ -412,12 +474,12 @@ Deno.serve(async (req: Request) => {
           stock_code,
           stock_name,
           nation_type,
-          user_id
+          user_id,
+          api_info
         )
       `)
       .eq('is_active', true)
-      .eq('stock_subscriptions.nation_type', nationType)
-      .lte('tracking_started_at', new Date().toISOString()); // 추적이 시작된 조건들만
+      .eq('stock_subscriptions.nation_type', nationType);
 
     if (conditionsError) {
       console.error('조건 조회 오류:', conditionsError);
