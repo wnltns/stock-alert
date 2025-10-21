@@ -14,6 +14,7 @@ import { supabase } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Play } from 'lucide-react';
 import FcmAutoRegister from '@/components/auth/fcm-auto-register';
+import { PWAInstallPrompt } from '@/components/pwa-install-prompt';
 
 export default function Home() {
   const router = useRouter();
@@ -195,6 +196,7 @@ export default function Home() {
             </div>
           </div>
         </div>
+        <PWAInstallPrompt />
       </main>
     </AuthGuard>
   );

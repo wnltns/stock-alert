@@ -19,6 +19,11 @@ export default function RootLayout({
     <html lang="ko">
       <head>
         <meta name="theme-color" content="#0ea5e9" />
+        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+        <meta name="mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+        <meta name="apple-mobile-web-app-title" content="StockAlert" />
         <link rel="manifest" href="/manifest.webmanifest" />
         <link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
         {/* Firebase SDK (compat) */}
@@ -29,9 +34,17 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{
             __html: `
               window.addEventListener('load', function() {
+                // PWA Service Worker 등록
                 if ('serviceWorker' in navigator) {
-                  navigator.serviceWorker.register('/firebase-messaging-sw.js').catch(function(e){console.error('SW 등록 실패', e)});
+                  navigator.serviceWorker.register('/sw.js')
+                    .then(function(registration) {
+                      console.log('PWA Service Worker 등록 성공:', registration.scope);
+                    })
+                    .catch(function(error) {
+                      console.error('PWA Service Worker 등록 실패:', error);
+                    });
                 }
+                
                 // Firebase 초기화 (이미 초기화된 경우 건너뜀)
                 try {
                   var firebaseConfig = {
