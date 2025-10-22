@@ -36,7 +36,7 @@ export default function RootLayout({
               window.addEventListener('load', function() {
                 // PWA Service Worker 등록
                 if ('serviceWorker' in navigator) {
-                  navigator.serviceWorker.register('/sw.js')
+                  navigator.serviceWorker.register('/sw.js', { scope: '/' })
                     .then(function(registration) {
                       console.log('PWA Service Worker 등록 성공:', registration.scope);
                     })
