@@ -265,11 +265,19 @@ export function useFcmAutoRegistration(): {
 
         if (currentToken) {
           console.log('FCM 토큰을 등록합니다:', currentToken.substring(0, 20) + '...');
-          
-          const success = await registerToken(currentToken, 'web', {
+
+          // PWA 환경 감지
+          const isPWA = window.matchMedia('(display-mode: standalone)').matches ||
+                        (window.navigator as any).standalone === true;
+          const deviceType = isPWA ? 'pwa' : 'web';
+
+          console.log(`디바이스 타입: ${deviceType}, PWA 모드: ${isPWA}`);
+
+          const success = await registerToken(currentToken, deviceType, {
             userAgent: navigator.userAgent,
             platform: navigator.platform,
-            language: navigator.language
+            language: navigator.language,
+            displayMode: window.matchMedia('(display-mode: standalone)').matches ? 'standalone' : 'browser'
           });
           
           if (success) {
