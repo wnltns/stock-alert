@@ -198,10 +198,11 @@ export function useFcmAutoRegistration(): {
   error: string | null;
 } {
   const { user } = useAuth();
-  const { registerToken, tokens } = useFcmTokens();
+  const { registerToken } = useFcmTokens();
   const [isSupported, setIsSupported] = useState(false);
   const [isRegistered, setIsRegistered] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [initialized, setInitialized] = useState(false);
 
   useEffect(() => {
     // Service Worker와 FCM 지원 확인
@@ -227,6 +228,8 @@ export function useFcmAutoRegistration(): {
 
     // Firebase 초기화 및 토큰 등록
     const initializeFcm = async () => {
+      if (initialized) return; // 이미 초기화되었으면 중복 실행 방지
+      
       try {
         // Firebase 앱이 이미 초기화되어 있는지 확인
         if (!window.firebase || !window.firebase.apps || window.firebase.apps.length === 0) {
@@ -242,27 +245,24 @@ export function useFcmAutoRegistration(): {
         });
 
         if (currentToken) {
-          // 토큰이 이미 등록되어 있는지 확인
-          const isAlreadyRegistered = tokens.some(t => t.token === currentToken);
+          console.log('FCM 토큰을 등록합니다:', currentToken.substring(0, 20) + '...');
           
-          if (!isAlreadyRegistered) {
-            const success = await registerToken(currentToken, 'web', {
-              userAgent: navigator.userAgent,
-              platform: navigator.platform,
-              language: navigator.language
-            });
-            
-            if (success) {
-              setIsRegistered(true);
-              console.log('FCM 토큰이 성공적으로 등록되었습니다.');
-            }
-          } else {
+          const success = await registerToken(currentToken, 'web', {
+            userAgent: navigator.userAgent,
+            platform: navigator.platform,
+            language: navigator.language
+          });
+          
+          if (success) {
             setIsRegistered(true);
+            setInitialized(true);
+            console.log('FCM 토큰이 성공적으로 등록되었습니다.');
+          } else {
+            setError('FCM 토큰 등록에 실패했습니다.');
           }
         } else {
           setError('FCM 토큰을 가져올 수 없습니다.');
         }
-
 
         // 메시지 수신 이벤트 리스너
         messaging.onMessage((payload: any) => {
@@ -292,10 +292,10 @@ export function useFcmAutoRegistration(): {
       }
     };
 
-    if (user && isSupported) {
+    if (user && isSupported && !initialized) {
       initializeFcm();
     }
-  }, [user, isSupported, registerToken, tokens]);
+  }, [user, isSupported, registerToken, initialized]);
 
   return {
     isSupported,

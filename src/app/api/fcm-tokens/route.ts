@@ -34,6 +34,44 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // 사용자가 실제로 users 테이블에 존재하는지 확인하고 없으면 생성
+    const { data: userRecord, error: userCheckError } = await supabase
+      .from('users')
+      .select('id')
+      .eq('id', user.id)
+      .single();
+
+    if (userCheckError || !userRecord) {
+      console.log('사용자 정보가 없어서 새로 생성합니다:', user.id);
+      
+      // 사용자 정보 생성 (UPSERT 사용)
+      const { error: insertError } = await supabase
+        .from('users')
+        .upsert({
+          id: user.id,
+          email: user.email || '',
+          name: user.user_metadata?.full_name || user.email?.split('@')[0] || '사용자',
+          last_login_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        }, {
+          onConflict: 'id'
+        });
+
+      if (insertError) {
+        console.error('사용자 정보 생성 실패:', insertError);
+        return NextResponse.json(
+          { 
+            error: '사용자 정보 생성에 실패했습니다.',
+            code: 'USER_CREATION_FAILED',
+            details: insertError.message
+          },
+          { status: 500 }
+        );
+      }
+      
+      console.log('사용자 정보가 성공적으로 생성되었습니다.');
+    }
+
     const body = await request.json();
     const { 
       token: fcmToken, 
@@ -148,6 +186,44 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
+    // 사용자가 실제로 users 테이블에 존재하는지 확인하고 없으면 생성
+    const { data: userRecord, error: userCheckError } = await supabase
+      .from('users')
+      .select('id')
+      .eq('id', user.id)
+      .single();
+
+    if (userCheckError || !userRecord) {
+      console.log('사용자 정보가 없어서 새로 생성합니다:', user.id);
+      
+      // 사용자 정보 생성 (UPSERT 사용)
+      const { error: insertError } = await supabase
+        .from('users')
+        .upsert({
+          id: user.id,
+          email: user.email || '',
+          name: user.user_metadata?.full_name || user.email?.split('@')[0] || '사용자',
+          last_login_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        }, {
+          onConflict: 'id'
+        });
+
+      if (insertError) {
+        console.error('사용자 정보 생성 실패:', insertError);
+        return NextResponse.json(
+          { 
+            error: '사용자 정보 생성에 실패했습니다.',
+            code: 'USER_CREATION_FAILED',
+            details: insertError.message
+          },
+          { status: 500 }
+        );
+      }
+      
+      console.log('사용자 정보가 성공적으로 생성되었습니다.');
+    }
+
     const body = await request.json();
     const { token: fcmToken } = body;
 
@@ -213,6 +289,44 @@ export async function GET(request: NextRequest) {
         { error: '유효하지 않은 인증 토큰입니다.' },
         { status: 401 }
       );
+    }
+
+    // 사용자가 실제로 users 테이블에 존재하는지 확인하고 없으면 생성
+    const { data: userRecord, error: userCheckError } = await supabase
+      .from('users')
+      .select('id')
+      .eq('id', user.id)
+      .single();
+
+    if (userCheckError || !userRecord) {
+      console.log('사용자 정보가 없어서 새로 생성합니다:', user.id);
+      
+      // 사용자 정보 생성 (UPSERT 사용)
+      const { error: insertError } = await supabase
+        .from('users')
+        .upsert({
+          id: user.id,
+          email: user.email || '',
+          name: user.user_metadata?.full_name || user.email?.split('@')[0] || '사용자',
+          last_login_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        }, {
+          onConflict: 'id'
+        });
+
+      if (insertError) {
+        console.error('사용자 정보 생성 실패:', insertError);
+        return NextResponse.json(
+          { 
+            error: '사용자 정보 생성에 실패했습니다.',
+            code: 'USER_CREATION_FAILED',
+            details: insertError.message
+          },
+          { status: 500 }
+        );
+      }
+      
+      console.log('사용자 정보가 성공적으로 생성되었습니다.');
     }
 
     // 사용자의 활성 FCM 토큰 조회
