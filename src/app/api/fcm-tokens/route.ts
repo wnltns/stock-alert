@@ -66,7 +66,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 기존 토큰 확인
+    // 기존 토큰 확인 (동일한 토큰)
     const { data: existingToken } = await supabase
       .from('fcm_tokens')
       .select('id, is_active')
@@ -100,6 +100,17 @@ export async function POST(request: NextRequest) {
         tokenId: existingToken.id
       });
     } else {
+      // 새 토큰 등록 전에 기존 모든 토큰 비활성화
+      const { error: deactivateError } = await supabase
+        .from('fcm_tokens')
+        .update({ is_active: false })
+        .eq('user_id', user.id);
+
+      if (deactivateError) {
+        console.error('기존 토큰 비활성화 오류:', deactivateError);
+        // 비활성화 실패해도 새 토큰 등록은 계속 진행
+      }
+
       // 새 토큰 등록
       const { data: newToken, error: insertError } = await supabase
         .from('fcm_tokens')
