@@ -56,10 +56,10 @@ export function useFcmTokens(): UseFcmTokensReturn {
       const data = await response.json();
 
       if (!response.ok) {
-        // 사용자 정보가 없는 경우 에러만 표시 (리다이렉트 하지 않음)
+        // 사용자 정보가 없는 경우 - 조용히 실패 처리
         if (data.code === 'USER_NOT_FOUND') {
-          console.warn('사용자 정보가 없습니다. 먼저 로그인해주세요.');
-          setError('사용자 정보가 없습니다. 먼저 로그인해주세요.');
+          console.warn('사용자 정보가 users 테이블에 없습니다. FCM 토큰 조회를 건너뜁니다.');
+          setTokens([]); // 빈 배열로 설정
           return;
         }
         throw new Error(data.error || '토큰 조회에 실패했습니다.');
@@ -113,12 +113,14 @@ export function useFcmTokens(): UseFcmTokensReturn {
       const data = await response.json();
 
       if (!response.ok) {
-        // 사용자 정보가 없는 경우 에러만 표시 (리다이렉트 하지 않음)
+        // 사용자 정보가 없는 경우 - 조용히 실패 처리 (에러를 던지지 않음)
         if (data.code === 'USER_NOT_FOUND') {
-          console.warn('사용자 정보가 없습니다. 먼저 로그인해주세요.');
-          setError('사용자 정보가 없습니다. 먼저 로그인해주세요.');
+          console.warn('사용자 정보가 users 테이블에 없습니다. FCM 토큰 등록을 건너뜁니다.');
+          // setError를 호출하지 않고 조용히 false 반환
           return false;
         }
+        // 다른 에러의 경우에만 에러를 던짐
+        console.error('FCM 토큰 등록 실패:', data.error);
         throw new Error(data.error || '토큰 등록에 실패했습니다.');
       }
 
@@ -165,10 +167,9 @@ export function useFcmTokens(): UseFcmTokensReturn {
       const data = await response.json();
 
       if (!response.ok) {
-        // 사용자 정보가 없는 경우 에러만 표시 (리다이렉트 하지 않음)
+        // 사용자 정보가 없는 경우 - 조용히 실패 처리
         if (data.code === 'USER_NOT_FOUND') {
-          console.warn('사용자 정보가 없습니다. 먼저 로그인해주세요.');
-          setError('사용자 정보가 없습니다. 먼저 로그인해주세요.');
+          console.warn('사용자 정보가 users 테이블에 없습니다. FCM 토큰 삭제를 건너뜁니다.');
           return false;
         }
         throw new Error(data.error || '토큰 삭제에 실패했습니다.');
@@ -276,9 +277,10 @@ export function useFcmAutoRegistration(): {
             setInitialized(true);
             console.log('FCM 토큰이 성공적으로 등록되었습니다.');
           } else {
-            // 토큰 등록 실패 시 에러만 표시 (리다이렉트 하지 않음)
-            console.warn('FCM 토큰 등록에 실패했습니다. 사용자 정보가 없을 수 있습니다.');
-            setError('FCM 토큰 등록에 실패했습니다. 사용자 정보가 없을 수 있습니다.');
+            // 토큰 등록 실패 시 - 조용히 실패 처리 (에러를 표시하지 않음)
+            console.warn('FCM 토큰 등록에 실패했습니다. users 테이블에 사용자 정보가 없을 수 있습니다.');
+            setInitialized(true); // 재시도를 방지하기 위해 초기화 완료 상태로 설정
+            // setError를 호출하지 않음 - 사용자 경험을 방해하지 않음
           }
         } else {
           setError('FCM 토큰을 가져올 수 없습니다.');
