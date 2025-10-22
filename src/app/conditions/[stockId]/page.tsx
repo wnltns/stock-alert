@@ -26,13 +26,18 @@ export default function ConditionManagementPage() {
   const [editingCondition, setEditingCondition] = useState<AlertCondition | null>(null);
   const [loading, setLoading] = useState(true);
   const { confirm: showConfirm, ConfirmDialog } = useConfirmDialog();
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
 
   useEffect(() => {
     const fetchStockData = async () => {
-      if (!user) return;
+      // 인증 로딩 중이거나 사용자가 없는 경우 대기
+      if (authLoading || !user) {
+        return;
+      }
       
       try {
+        setLoading(true);
+        
         // 먼저 목업 데이터에서 찾기
         const mockStock = MOCK_STOCK_DETAILS.find(s => s.subscription.stock_code === stockCode);
         if (mockStock) {
@@ -98,7 +103,7 @@ export default function ConditionManagementPage() {
     };
 
     fetchStockData();
-  }, [stockCode, user, router]);
+  }, [stockCode, user, authLoading, router]);
 
   const handleAddCondition = async () => {
     if (!stock || !user) return;
@@ -391,11 +396,13 @@ export default function ConditionManagementPage() {
     }
   };
 
-  if (loading) {
+  if (authLoading || loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
-          <p className="text-muted-foreground">주식 정보를 불러오는 중...</p>
+          <p className="text-muted-foreground">
+            {authLoading ? '인증 확인 중...' : '주식 정보를 불러오는 중...'}
+          </p>
         </div>
       </div>
     );
