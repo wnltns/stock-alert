@@ -7,12 +7,10 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { ArrowLeft, Plus, Edit, Trash2, TrendingUp, TrendingDown, RotateCcw, RotateCcwSquare } from 'lucide-react';
-import { MOCK_STOCK_DETAILS } from '@/constants/mock-data';
 import { StockDetail, AlertCondition, AddConditionFormData, StockSubscription } from '@/types';
 import { AddConditionDialog } from '@/components/condition/add-condition-dialog';
 import { EditConditionDialog } from '@/components/condition/edit-condition-dialog';
 import { useConfirmDialog } from '@/components/ui/confirm-dialog';
-import { AuthGuard } from '@/components/auth/auth-guard';
 import { supabase } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
 
@@ -30,31 +28,37 @@ export default function ConditionManagementPage() {
 
   useEffect(() => {
     const fetchStockData = async () => {
-      // 인증 로딩 중이거나 사용자가 없는 경우 대기
-      if (authLoading || !user) {
+      // 인증 로딩 중이면 대기
+      if (authLoading) {
+        return;
+      }
+      
+      // 사용자가 없으면 로그인 페이지로 리다이렉트
+      if (!user) {
+        router.push('/login');
         return;
       }
       
       try {
         setLoading(true);
         
-        // 먼저 목업 데이터에서 찾기
-        const mockStock = MOCK_STOCK_DETAILS.find(s => s.subscription.stock_code === stockCode);
-        if (mockStock) {
-          setStock(mockStock);
+        // 타임아웃 설정 (3초로 단축)
+        const timeoutId = setTimeout(() => {
+          console.warn('주식 데이터 로딩 타임아웃');
           setLoading(false);
-          return;
-        }
-
-        // 캐시된 데이터에 없으면 실제 데이터베이스에서 주식 구독 정보 조회
+        }, 3000);
+        
+        // 실제 데이터베이스에서 주식 구독 정보 조회
         const { data: subscriptions, error } = await supabase
           .from('stock_subscriptions')
           .select('*')
           .eq('user_id', user.id)
-          .eq('stock_code', stockCode);
+          .eq('stock_code', stockCode)
+          .limit(1);
 
         if (error) {
           console.error('주식 구독 조회 오류:', error);
+          clearTimeout(timeoutId);
           setLoading(false);
           return;
         }
@@ -62,7 +66,7 @@ export default function ConditionManagementPage() {
         const subscription = subscriptions && subscriptions.length > 0 ? subscriptions[0] : null;
 
         if (subscription) {
-          // 알림 조건 조회
+          // 알림 조건 조회 (단순화)
           const { data: conditions, error: conditionsError } = await supabase
             .from('alert_conditions')
             .select('*')
@@ -90,20 +94,23 @@ export default function ConditionManagementPage() {
             conditions: conditions || [],
           };
           
+          clearTimeout(timeoutId);
           setStock(stockDetail);
         } else {
           // 주식이 없으면 홈으로 리다이렉트
+          clearTimeout(timeoutId);
           router.push('/');
         }
       } catch (error) {
         console.error('주식 데이터 조회 오류:', error);
+        setLoading(false);
       } finally {
         setLoading(false);
       }
     };
 
     fetchStockData();
-  }, [stockCode, user, authLoading, router]);
+  }, [stockCode, user, router, authLoading]);
 
   const handleAddCondition = async () => {
     if (!stock || !user) return;
@@ -382,11 +389,6 @@ export default function ConditionManagementPage() {
     }
   };
 
-  const isConditionMet = (condition: AlertCondition) => {
-    // 설정 페이지에서는 실시간 주가 정보가 없으므로 항상 '대기' 상태로 표시
-    return false;
-  };
-
   const formatPrice = (price: number) => {
     const isKorean = stock?.subscription.nation_type === 'KOREA' || stock?.subscription.nation_type === 'KOR';
     if (isKorean) {
@@ -400,9 +402,15 @@ export default function ConditionManagementPage() {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
           <p className="text-muted-foreground">
             {authLoading ? '인증 확인 중...' : '주식 정보를 불러오는 중...'}
           </p>
+          {loading && (
+            <p className="text-xs text-muted-foreground mt-2">
+              잠시만 기다려주세요. 3초 후 자동으로 해제됩니다.
+            </p>
+          )}
         </div>
       </div>
     );
@@ -422,8 +430,7 @@ export default function ConditionManagementPage() {
   }
 
   return (
-    <AuthGuard>
-      <main className="min-h-screen bg-background transition-colors duration-300">
+    <main className="min-h-screen bg-background transition-colors duration-300">
         <div className="container mx-auto px-4 py-8">
           <div className="max-w-4xl mx-auto">
             {/* 헤더 */}
@@ -500,8 +507,6 @@ export default function ConditionManagementPage() {
           ) : (
             <div className="space-y-4">
               {stock.conditions.map((condition) => {
-                const isMet = isConditionMet(condition);
-                
                 return (
                   <Card key={condition.id} className="transition-all duration-300 hover:shadow-lg">
                     <CardContent className="p-3 sm:p-4">
@@ -543,9 +548,6 @@ export default function ConditionManagementPage() {
                           </div>
                         </div>
                         <div className="flex items-center justify-between sm:justify-end gap-2 flex-shrink-0">
-                          <Badge variant={isMet ? "default" : "outline"} className={isMet ? "bg-green-500" : ""}>
-                            {isMet ? "충족" : "대기"}
-                          </Badge>
                           <div className="flex gap-1">
                             <Button 
                               variant="ghost" 
@@ -608,6 +610,5 @@ export default function ConditionManagementPage() {
       {/* 확인 다이얼로그 */}
       {ConfirmDialog}
     </main>
-    </AuthGuard>
   );
 }

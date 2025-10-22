@@ -25,11 +25,28 @@ export function useAuth() {
 
   useEffect(() => {
     let mounted = true
+    let timeoutId: NodeJS.Timeout
 
-    // 초기 세션 가져오기
+    // 초기 세션 가져오기 (단순화)
     const getInitialSession = async () => {
       try {
+        // 타임아웃 설정 (3초로 단축)
+        timeoutId = setTimeout(() => {
+          if (mounted) {
+            console.warn('세션 로딩 타임아웃 - 기본값으로 설정')
+            setAuthState({
+              user: null,
+              session: null,
+              loading: false,
+              error: null
+            })
+          }
+        }, 3000)
+
         const { data: { session }, error } = await supabase.auth.getSession()
+        
+        // 타임아웃 클리어
+        clearTimeout(timeoutId)
         
         if (error) {
           console.error('세션 가져오기 실패:', error)
@@ -50,13 +67,9 @@ export function useAuth() {
             loading: false,
             error: null
           })
-
-          // 초기 세션에서도 사용자 정보 생성
-          if (session?.user) {
-            await ensureUserExists(session.user);
-          }
         }
       } catch (error) {
+        clearTimeout(timeoutId)
         console.error('초기 세션 처리 오류:', error)
         if (mounted) {
           setAuthState({
@@ -71,44 +84,9 @@ export function useAuth() {
 
     getInitialSession()
 
-    // 사용자 정보를 users 테이블에 생성하는 함수
-    const ensureUserExists = async (user: User) => {
-      try {
-        const { data: existingUser, error: checkError } = await supabase
-          .from('users')
-          .select('id')
-          .eq('id', user.id)
-          .single();
-
-        if (checkError || !existingUser) {
-          console.log('사용자 정보를 users 테이블에 생성합니다:', user.id);
-          
-          const { error: insertError } = await supabase
-            .from('users')
-            .upsert({
-              id: user.id,
-              email: user.email || '',
-              name: user.user_metadata?.full_name || user.email?.split('@')[0] || '사용자',
-              last_login_at: new Date().toISOString(),
-              updated_at: new Date().toISOString()
-            }, {
-              onConflict: 'id'
-            });
-
-          if (insertError) {
-            console.error('사용자 정보 생성 실패:', insertError);
-          } else {
-            console.log('사용자 정보가 성공적으로 생성되었습니다.');
-          }
-        }
-      } catch (error) {
-        console.error('사용자 정보 확인/생성 중 오류:', error);
-      }
-    };
-
-    // 인증 상태 변화 감지
+    // 인증 상태 변화 감지 (단순화)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
+      (event, session) => {
         if (mounted) {
           setAuthState({
             user: session?.user ?? null,
@@ -116,17 +94,13 @@ export function useAuth() {
             loading: false,
             error: null
           })
-
-          // 로그인 시 사용자 정보 생성
-          if (event === 'SIGNED_IN' && session?.user) {
-            await ensureUserExists(session.user);
-          }
         }
       }
     )
 
     return () => {
       mounted = false
+      clearTimeout(timeoutId)
       subscription.unsubscribe()
     }
   }, [])

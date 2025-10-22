@@ -295,7 +295,7 @@ async function checkAndProcessCondition(condition: AlertCondition): Promise<void
     const trackingEndDate = new Date(condition.tracking_ended_at);
     const isTrackingPeriodExpired = isSameDate(currentDate, trackingEndDate);
 
-    // 현재 누적 변동률이 이미 임계값을 초과했는지 확인
+    // 조건 검사 시작 전에만 초기화 여부 판단
     const currentCumulativeRate = condition.cumulative_change_rate || 0;
     let shouldReset = false;
     let resetReason = '';
@@ -305,13 +305,13 @@ async function checkAndProcessCondition(condition: AlertCondition): Promise<void
       resetReason = '추적 기간 만료';
     } else if (condition.condition_type === 'rise' && currentCumulativeRate >= condition.threshold) {
       shouldReset = true;
-      resetReason = '상승 조건 이미 충족';
+      resetReason = '상승 조건 임계값 초과';
     } else if (condition.condition_type === 'drop' && currentCumulativeRate <= -condition.threshold) {
       shouldReset = true;
-      resetReason = '하락 조건 이미 충족';
+      resetReason = '하락 조건 임계값 초과';
     }
 
-    // 초기화가 필요한 경우 처리
+    // 초기화가 필요한 경우 처리 (조건 검사 시작 전에만)
     if (shouldReset) {
       console.log(`${resetReason}로 초기화: ${stockName} (${stockCode}) - 현재 누적: ${currentCumulativeRate.toFixed(2)}%`);
       
@@ -334,7 +334,10 @@ async function checkAndProcessCondition(condition: AlertCondition): Promise<void
         return;
       } else {
         console.log(`${resetReason}로 초기화 완료: ${stockName} (${stockCode}) - 새로운 추적 기간 시작`);
-        // 초기화 후 새로운 기간으로 조건 검사 계속 진행
+        // 초기화 후 condition 객체의 cumulative_change_rate를 0으로 업데이트
+        condition.cumulative_change_rate = 0;
+        condition.tracking_started_at = resetDate.toISOString();
+        condition.tracking_ended_at = newTrackingEndDate.toISOString();
       }
     }
     
@@ -371,7 +374,7 @@ async function checkAndProcessCondition(condition: AlertCondition): Promise<void
       conditionMet = true;
     }
 
-    // 조건 충족 시 알림 발송만 수행 (초기화는 이미 추적 기간 만료 시 처리됨)
+    // 조건 충족 시 알림 발송만 수행 (초기화는 절대 하지 않음)
     if (conditionMet) {
       console.log(`조건 충족: ${stockName} (${stockCode}) - ${condition.condition_type} ${condition.threshold}%`);
       
@@ -391,7 +394,7 @@ async function checkAndProcessCondition(condition: AlertCondition): Promise<void
       }
     }
 
-    // 누적 변동률 업데이트 (조건 충족 여부와 관계없이)
+    // 누적 변동률 업데이트 (조건 충족 여부와 관계없이, 초기화는 절대 하지 않음)
     const { error: updateError } = await supabase
       .from('alert_conditions')
       .update({
@@ -439,34 +442,7 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // 시간대별 필터링 로직 (데이터베이스가 한국 시간대로 설정됨)
-    const now = new Date();
-    const currentHour = now.getHours(); // 한국 시간대 기준으로 직접 사용
-    
-    // 국내 주식은 오전 9시에만, 해외 주식은 오후 11시에만 모니터링
-    if (nationType === 'KOR' && currentHour !== 9) {
-      console.log(`국내 주식 모니터링 시간이 아닙니다. 현재 시간: ${currentHour}시 (KST)`);
-      return new Response(
-        JSON.stringify({ 
-          message: `국내 주식 모니터링 시간이 아닙니다. 현재 시간: ${currentHour}시 (KST)`,
-          skipped: true 
-        }),
-        { headers: { 'Content-Type': 'application/json' } }
-      );
-    }
-    
-    if (nationType === 'FOREIGN' && currentHour !== 23) {
-      console.log(`해외 주식 모니터링 시간이 아닙니다. 현재 시간: ${currentHour}시 (KST)`);
-      return new Response(
-        JSON.stringify({ 
-          message: `해외 주식 모니터링 시간이 아닙니다. 현재 시간: ${currentHour}시 (KST)`,
-          skipped: true 
-        }),
-        { headers: { 'Content-Type': 'application/json' } }
-      );
-    }
-
-    console.log(`${nationType} 주식 모니터링 시작 (${currentHour}시 KST)`);
+    console.log(`${nationType} 주식 모니터링 시작`);
 
     // 활성화된 알림 조건만 조회 (is_active = true)
     const { data: conditions, error: conditionsError } = await supabase

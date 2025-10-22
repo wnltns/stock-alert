@@ -56,6 +56,12 @@ export function useFcmTokens(): UseFcmTokensReturn {
       const data = await response.json();
 
       if (!response.ok) {
+        // 사용자 정보가 없는 경우 에러만 표시 (리다이렉트 하지 않음)
+        if (data.code === 'USER_NOT_FOUND') {
+          console.warn('사용자 정보가 없습니다. 먼저 로그인해주세요.');
+          setError('사용자 정보가 없습니다. 먼저 로그인해주세요.');
+          return;
+        }
         throw new Error(data.error || '토큰 조회에 실패했습니다.');
       }
 
@@ -107,6 +113,12 @@ export function useFcmTokens(): UseFcmTokensReturn {
       const data = await response.json();
 
       if (!response.ok) {
+        // 사용자 정보가 없는 경우 에러만 표시 (리다이렉트 하지 않음)
+        if (data.code === 'USER_NOT_FOUND') {
+          console.warn('사용자 정보가 없습니다. 먼저 로그인해주세요.');
+          setError('사용자 정보가 없습니다. 먼저 로그인해주세요.');
+          return false;
+        }
         throw new Error(data.error || '토큰 등록에 실패했습니다.');
       }
 
@@ -153,6 +165,12 @@ export function useFcmTokens(): UseFcmTokensReturn {
       const data = await response.json();
 
       if (!response.ok) {
+        // 사용자 정보가 없는 경우 에러만 표시 (리다이렉트 하지 않음)
+        if (data.code === 'USER_NOT_FOUND') {
+          console.warn('사용자 정보가 없습니다. 먼저 로그인해주세요.');
+          setError('사용자 정보가 없습니다. 먼저 로그인해주세요.');
+          return false;
+        }
         throw new Error(data.error || '토큰 삭제에 실패했습니다.');
       }
 
@@ -258,7 +276,9 @@ export function useFcmAutoRegistration(): {
             setInitialized(true);
             console.log('FCM 토큰이 성공적으로 등록되었습니다.');
           } else {
-            setError('FCM 토큰 등록에 실패했습니다.');
+            // 토큰 등록 실패 시 에러만 표시 (리다이렉트 하지 않음)
+            console.warn('FCM 토큰 등록에 실패했습니다. 사용자 정보가 없을 수 있습니다.');
+            setError('FCM 토큰 등록에 실패했습니다. 사용자 정보가 없을 수 있습니다.');
           }
         } else {
           setError('FCM 토큰을 가져올 수 없습니다.');

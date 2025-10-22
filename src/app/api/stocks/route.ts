@@ -76,25 +76,21 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // users 테이블에 사용자가 존재하지 않으면 생성 (UPSERT 방식)
-    const { error: upsertUserError } = await supabase
+    // 사용자가 users 테이블에 존재하는지 확인 (생성하지 않음)
+    const { data: userRecord, error: userCheckError } = await supabase
       .from('users')
-      .upsert({
-        id: user.id,
-        email: user.email || '',
-        name: user.user_metadata?.name || user.email?.split('@')[0] || '사용자',
-        is_active: true,
-        timezone: 'Asia/Seoul',
-      } as any, {
-        onConflict: 'id',
-        ignoreDuplicates: false
-      });
+      .select('id')
+      .eq('id', user.id)
+      .single();
 
-    if (upsertUserError) {
-      console.error('사용자 정보 처리 중 오류:', upsertUserError);
+    if (userCheckError || !userRecord) {
+      console.error('사용자 정보가 없습니다. 먼저 로그인해주세요:', user.id);
       return NextResponse.json(
-        { error: '사용자 정보 처리 중 오류가 발생했습니다.' },
-        { status: 500 }
+        { 
+          error: '사용자 정보가 없습니다. 먼저 로그인해주세요.',
+          code: 'USER_NOT_FOUND'
+        },
+        { status: 404 }
       );
     }
 

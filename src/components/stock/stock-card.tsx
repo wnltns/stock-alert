@@ -84,7 +84,7 @@ export function StockCard({ stock, onViewDetails, onAddCondition, alertHistory =
           <div className="text-sm font-medium text-muted-foreground">설정된 조건</div>
           {conditions.length > 0 ? (
             <div className="space-y-1">
-              {conditions.slice(0, 2).map((condition: AlertConditionWithStatus) => {
+              {conditions.map((condition: AlertConditionWithStatus) => {
                 const typeLabels: Record<string, string> = {
                   rise: '상승',
                   drop: '하락',
@@ -125,11 +125,6 @@ export function StockCard({ stock, onViewDetails, onAddCondition, alertHistory =
                   </div>
                 );
               })}
-              {conditions.length > 2 && (
-                <div className="text-xs text-muted-foreground text-center">
-                  +{conditions.length - 2}개 더
-                </div>
-              )}
             </div>
           ) : (
             <div className="text-xs text-muted-foreground text-center py-2">

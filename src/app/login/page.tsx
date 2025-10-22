@@ -8,17 +8,17 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { AlertCircle } from 'lucide-react'
 
 function LoginContent() {
-  const { isAuthenticated, loading, user } = useAuth()
+  const { isAuthenticated, loading } = useAuth()
   const router = useRouter()
   const searchParams = useSearchParams()
   const error = searchParams.get('error')
 
-  // 로그인된 사용자를 메인 페이지로 리다이렉트
+  // 로그인된 사용자를 메인 페이지로 리다이렉트 (세션만 확인)
   useEffect(() => {
-    if (!loading && isAuthenticated && user) {
+    if (!loading && isAuthenticated) {
       router.replace('/')
     }
-  }, [isAuthenticated, loading, user, router])
+  }, [isAuthenticated, loading, router])
 
   if (loading) {
     return (
@@ -31,8 +31,8 @@ function LoginContent() {
     )
   }
 
-  // 이미 로그인된 경우 로딩 화면 표시 (리다이렉트 중)
-  if (isAuthenticated && user) {
+  // 이미 로그인된 경우 리다이렉트 (세션만 확인)
+  if (isAuthenticated) {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <div className="text-center">

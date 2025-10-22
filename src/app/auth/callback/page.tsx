@@ -16,7 +16,7 @@ export default function AuthCallbackPage() {
         setStatus('loading')
         setMessage('인증 처리 중...')
 
-        // URL 해시 프래그먼트에서 토큰 처리
+        // OAuth 콜백에서 세션 처리
         const { data, error } = await supabase.auth.getSession()
         
         if (error) {
@@ -24,7 +24,6 @@ export default function AuthCallbackPage() {
           setStatus('error')
           setMessage('인증에 실패했습니다.')
           
-          // 2초 후 로그인 페이지로 리다이렉트
           setTimeout(() => {
             router.push('/login?error=auth_failed')
           }, 2000)
@@ -32,13 +31,70 @@ export default function AuthCallbackPage() {
         }
 
         if (data.session) {
-          // 인증 성공 - 즉시 메인 페이지로 리다이렉트
-          router.push('/')
+          console.log('인증 성공, 사용자 ID:', data.session.user.id)
+          
+          // 사용자 정보가 users 테이블에 있는지 확인하고 없으면 생성
+          const { data: existingUser, error: userCheckError } = await supabase
+            .from('users')
+            .select('id')
+            .eq('id', data.session.user.id)
+            .single()
+
+          if (userCheckError || !existingUser) {
+            console.log('새 사용자 정보를 생성합니다:', data.session.user.id)
+            
+            const userData = {
+              id: data.session.user.id,
+              email: data.session.user.email || '',
+              name: data.session.user.user_metadata?.full_name || data.session.user.email?.split('@')[0] || '사용자',
+              last_login_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            }
+            
+            console.log('생성할 사용자 데이터:', userData)
+            
+            const { data: insertData, error: insertError } = await supabase
+              .from('users')
+              .upsert(userData, {
+                onConflict: 'id'
+              })
+              .select()
+
+            console.log('Insert 결과:', { insertData, insertError })
+
+            if (insertError) {
+              console.error('사용자 정보 생성 실패:', {
+                error: insertError,
+                message: insertError.message,
+                details: insertError.details,
+                hint: insertError.hint,
+                code: insertError.code
+              })
+              
+              // RLS 정책 문제인 경우 구체적인 메시지 표시
+              if (insertError.code === '42501') {
+                console.error('권한 오류: RLS 정책을 확인하세요.')
+              }
+              
+              // 사용자 정보 생성 실패해도 메인 페이지로 이동
+            } else {
+              console.log('사용자 정보가 성공적으로 생성되었습니다.')
+            }
+          } else {
+            console.log('기존 사용자 로그인')
+          }
+
+          setStatus('success')
+          setMessage('로그인 성공!')
+          
+          // 성공 후 메인 페이지로 리다이렉트
+          setTimeout(() => {
+            router.push('/')
+          }, 1000)
         } else {
           setStatus('error')
           setMessage('세션을 찾을 수 없습니다.')
           
-          // 2초 후 로그인 페이지로 리다이렉트
           setTimeout(() => {
             router.push('/login')
           }, 2000)

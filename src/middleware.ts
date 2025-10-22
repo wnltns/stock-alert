@@ -20,7 +20,7 @@ export async function middleware(req: NextRequest) {
     const publicPaths = ['/login', '/auth/callback']
     const isPublicPath = publicPaths.includes(pathname)
 
-    // 로그인 상태 확인
+    // 로그인 상태 확인 (세션만 확인)
     const isLoggedIn = !!session?.user
 
     // 로그인된 사용자가 로그인 페이지에 접근하는 경우

@@ -18,7 +18,6 @@ import { PWAInstallPrompt } from '@/components/pwa-install-prompt';
 
 export default function Home() {
   const router = useRouter();
-  const { user } = useAuth();
   
   // 실시간 주가 데이터를 가져오는 훅 사용
   const { 

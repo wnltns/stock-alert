@@ -60,57 +60,79 @@ export function useStockPrices(): UseStockPricesReturn {
       setLoading(true);
       setError(null);
 
-      // 현재 사용자의 세션 가져오기
+      // 현재 사용자의 세션 가져오기 (타임아웃 없이)
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
       
       if (sessionError || !session?.access_token) {
         throw new Error('인증이 필요합니다.');
       }
 
-      // 주가 데이터 API 호출
-      const response = await fetch('/api/stocks/prices', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`,
-        },
-      });
+      // 주가 데이터 API 호출 (AbortController 사용)
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30초 타임아웃
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || '주가 데이터를 가져올 수 없습니다.');
-      }
+      try {
+        const response = await fetch('/api/stocks/prices', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`,
+          },
+          signal: controller.signal,
+        });
 
-      const result = await response.json();
-      
-      // 디버깅 로그 (개발 환경에서만)
-      if (process.env.NODE_ENV === 'development') {
-        console.log('백엔드에서 받은 데이터:', result.data);
-        if (result.data && result.data.length > 0) {
-          result.data.forEach((stock: any) => {
-            if (stock.conditions && stock.conditions.length > 0) {
-              console.log(`${stock.subscription.stock_name} 조건들:`, stock.conditions.map((c: any) => ({
-                id: c.id,
-                condition_type: c.condition_type,
-                threshold: c.threshold,
-                is_condition_met: c.is_condition_met
-              })));
-            }
-          });
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || '주가 데이터를 가져올 수 없습니다.');
         }
+
+        const result = await response.json();
+        
+        // 디버깅 로그 (개발 환경에서만)
+        if (process.env.NODE_ENV === 'development') {
+          console.log('백엔드에서 받은 데이터:', result.data);
+          if (result.data && result.data.length > 0) {
+            result.data.forEach((stock: any) => {
+              if (stock.conditions && stock.conditions.length > 0) {
+                console.log(`${stock.subscription.stock_name} 조건들:`, stock.conditions.map((c: any) => ({
+                  id: c.id,
+                  condition_type: c.condition_type,
+                  threshold: c.threshold,
+                  is_condition_met: c.is_condition_met
+                })));
+              }
+            });
+          }
+        }
+        
+        // 캐시 상태 업데이트 (서버에서 캐시 사용 여부 확인)
+        setCached(result.cached || false);
+        
+        // 백엔드에서 이미 조건 충족 상태가 계산된 데이터를 그대로 사용
+        setStocks(result.data || []);
+        saveCachedData(result.data || []);
+        setLastFetchedAt(new Date());
+
+      } catch (fetchError) {
+        clearTimeout(timeoutId);
+        
+        if (fetchError instanceof Error && fetchError.name === 'AbortError') {
+          throw new Error('주가 데이터 조회 시간이 초과되었습니다. 잠시 후 다시 시도해주세요.');
+        }
+        throw fetchError;
       }
-      
-      // 캐시 상태 업데이트 (서버에서 캐시 사용 여부 확인)
-      setCached(result.cached || false);
-      
-      // 백엔드에서 이미 조건 충족 상태가 계산된 데이터를 그대로 사용
-      setStocks(result.data || []);
-      saveCachedData(result.data || []);
-      setLastFetchedAt(new Date());
 
     } catch (err) {
       console.error('주가 데이터 조회 오류:', err);
       setError(err instanceof Error ? err.message : '알 수 없는 오류가 발생했습니다.');
+      
+      // 에러 발생 시 캐시된 데이터라도 표시
+      const hasCachedData = loadCachedData();
+      if (!hasCachedData) {
+        setStocks([]);
+      }
     } finally {
       setLoading(false);
     }

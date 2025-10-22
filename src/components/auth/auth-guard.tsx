@@ -11,7 +11,7 @@ interface AuthGuardProps {
 }
 
 export function AuthGuard({ children, fallback }: AuthGuardProps) {
-  const { user, loading, isAuthenticated } = useAuth()
+  const { loading, isAuthenticated, error } = useAuth()
   const router = useRouter()
 
   useEffect(() => {
@@ -28,6 +28,11 @@ export function AuthGuard({ children, fallback }: AuthGuardProps) {
           <div className="flex flex-col items-center space-y-4">
             <Loader2 className="h-8 w-8 animate-spin" />
             <p className="text-sm text-muted-foreground">인증 확인 중...</p>
+            {error && (
+              <p className="text-xs text-red-500 text-center max-w-sm">
+                {error}
+              </p>
+            )}
           </div>
         </div>
       )
