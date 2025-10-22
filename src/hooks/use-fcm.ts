@@ -56,12 +56,6 @@ export function useFcmTokens(): UseFcmTokensReturn {
       const data = await response.json();
 
       if (!response.ok) {
-        // 사용자 정보가 없는 경우 에러만 표시 (리다이렉트 하지 않음)
-        if (data.code === 'USER_NOT_FOUND') {
-          console.warn('사용자 정보가 없습니다. 먼저 로그인해주세요.');
-          setError('사용자 정보가 없습니다. 먼저 로그인해주세요.');
-          return;
-        }
         throw new Error(data.error || '토큰 조회에 실패했습니다.');
       }
 
@@ -113,12 +107,6 @@ export function useFcmTokens(): UseFcmTokensReturn {
       const data = await response.json();
 
       if (!response.ok) {
-        // 사용자 정보가 없는 경우 에러만 표시 (리다이렉트 하지 않음)
-        if (data.code === 'USER_NOT_FOUND') {
-          console.warn('사용자 정보가 없습니다. 먼저 로그인해주세요.');
-          setError('사용자 정보가 없습니다. 먼저 로그인해주세요.');
-          return false;
-        }
         throw new Error(data.error || '토큰 등록에 실패했습니다.');
       }
 
@@ -165,12 +153,6 @@ export function useFcmTokens(): UseFcmTokensReturn {
       const data = await response.json();
 
       if (!response.ok) {
-        // 사용자 정보가 없는 경우 에러만 표시 (리다이렉트 하지 않음)
-        if (data.code === 'USER_NOT_FOUND') {
-          console.warn('사용자 정보가 없습니다. 먼저 로그인해주세요.');
-          setError('사용자 정보가 없습니다. 먼저 로그인해주세요.');
-          return false;
-        }
         throw new Error(data.error || '토큰 삭제에 실패했습니다.');
       }
 
@@ -216,11 +198,10 @@ export function useFcmAutoRegistration(): {
   error: string | null;
 } {
   const { user } = useAuth();
-  const { registerToken } = useFcmTokens();
+  const { registerToken, tokens } = useFcmTokens();
   const [isSupported, setIsSupported] = useState(false);
   const [isRegistered, setIsRegistered] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [initialized, setInitialized] = useState(false);
 
   useEffect(() => {
     // Service Worker와 FCM 지원 확인
@@ -246,8 +227,6 @@ export function useFcmAutoRegistration(): {
 
     // Firebase 초기화 및 토큰 등록
     const initializeFcm = async () => {
-      if (initialized) return; // 이미 초기화되었으면 중복 실행 방지
-      
       try {
         // Firebase 앱이 이미 초기화되어 있는지 확인
         if (!window.firebase || !window.firebase.apps || window.firebase.apps.length === 0) {
@@ -256,38 +235,39 @@ export function useFcmAutoRegistration(): {
         }
 
         const messaging = window.firebase.messaging();
-        
+
         // 현재 토큰 가져오기
         const currentToken = await messaging.getToken({
           vapidKey: process.env.NEXT_PUBLIC_FCM_VAPID_KEY
         });
 
         if (currentToken) {
-          console.log('FCM 토큰을 등록합니다:', currentToken.substring(0, 20) + '...');
-          
-          const success = await registerToken(currentToken, 'web', {
-            userAgent: navigator.userAgent,
-            platform: navigator.platform,
-            language: navigator.language
-          });
-          
-          if (success) {
-            setIsRegistered(true);
-            setInitialized(true);
-            console.log('FCM 토큰이 성공적으로 등록되었습니다.');
+          // 토큰이 이미 등록되어 있는지 확인
+          const isAlreadyRegistered = tokens.some(t => t.token === currentToken);
+
+          if (!isAlreadyRegistered) {
+            const success = await registerToken(currentToken, 'web', {
+              userAgent: navigator.userAgent,
+              platform: navigator.platform,
+              language: navigator.language
+            });
+
+            if (success) {
+              setIsRegistered(true);
+              console.log('FCM 토큰이 성공적으로 등록되었습니다.');
+            }
           } else {
-            // 토큰 등록 실패 시 에러만 표시 (리다이렉트 하지 않음)
-            console.warn('FCM 토큰 등록에 실패했습니다. 사용자 정보가 없을 수 있습니다.');
-            setError('FCM 토큰 등록에 실패했습니다. 사용자 정보가 없을 수 있습니다.');
+            setIsRegistered(true);
           }
         } else {
           setError('FCM 토큰을 가져올 수 없습니다.');
         }
 
+
         // 메시지 수신 이벤트 리스너
         messaging.onMessage((payload: any) => {
           console.log('FCM 메시지 수신:', payload);
-          
+
           // 브라우저 알림 표시
           if (payload.notification) {
             const notification = new Notification(payload.notification.title, {
@@ -312,10 +292,10 @@ export function useFcmAutoRegistration(): {
       }
     };
 
-    if (user && isSupported && !initialized) {
+    if (user && isSupported) {
       initializeFcm();
     }
-  }, [user, isSupported, registerToken, initialized]);
+  }, [user, isSupported, registerToken, tokens]);
 
   return {
     isSupported,

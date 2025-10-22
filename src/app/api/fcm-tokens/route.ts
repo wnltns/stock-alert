@@ -34,29 +34,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 사용자가 users 테이블에 존재하는지 확인 (생성하지 않음)
-    const { data: userRecord, error: userCheckError } = await supabase
-      .from('users')
-      .select('id')
-      .eq('id', user.id)
-      .single();
-
-    if (userCheckError || !userRecord) {
-      console.error('사용자 정보가 없습니다. 먼저 로그인해주세요:', user.id);
-      return NextResponse.json(
-        { 
-          error: '사용자 정보가 없습니다. 먼저 로그인해주세요.',
-          code: 'USER_NOT_FOUND'
-        },
-        { status: 404 }
-      );
-    }
-
     const body = await request.json();
-    const { 
-      token: fcmToken, 
+    const {
+      token: fcmToken,
       deviceType = 'web',
-      deviceInfo = null 
+      deviceInfo = null
     } = body;
 
     if (!fcmToken) {
@@ -166,24 +148,6 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    // 사용자가 users 테이블에 존재하는지 확인 (생성하지 않음)
-    const { data: userRecord, error: userCheckError } = await supabase
-      .from('users')
-      .select('id')
-      .eq('id', user.id)
-      .single();
-
-    if (userCheckError || !userRecord) {
-      console.error('사용자 정보가 없습니다. 먼저 로그인해주세요:', user.id);
-      return NextResponse.json(
-        { 
-          error: '사용자 정보가 없습니다. 먼저 로그인해주세요.',
-          code: 'USER_NOT_FOUND'
-        },
-        { status: 404 }
-      );
-    }
-
     const body = await request.json();
     const { token: fcmToken } = body;
 
@@ -246,26 +210,8 @@ export async function GET(request: NextRequest) {
     
     if (authError || !user) {
       return NextResponse.json(
-        { error: '유효하지 않은 인증 토큰입니다.' },
-        { status: 401 }
-      );
-    }
-
-    // 사용자가 users 테이블에 존재하는지 확인 (생성하지 않음)
-    const { data: userRecord, error: userCheckError } = await supabase
-      .from('users')
-      .select('id')
-      .eq('id', user.id)
-      .single();
-
-    if (userCheckError || !userRecord) {
-      console.error('사용자 정보가 없습니다. 먼저 로그인해주세요:', user.id);
-      return NextResponse.json(
-        { 
-          error: '사용자 정보가 없습니다. 먼저 로그인해주세요.',
-          code: 'USER_NOT_FOUND'
-        },
-        { status: 404 }
+          { error: '유효하지 않은 인증 토큰입니다.' },
+          { status: 401 }
       );
     }
 

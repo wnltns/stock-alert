@@ -25,41 +25,24 @@ export function useAuth() {
 
   useEffect(() => {
     let mounted = true
-    let timeoutId: NodeJS.Timeout
 
-    // 초기 세션 가져오기 (단순화)
+    // 초기 세션 가져오기
     const getInitialSession = async () => {
       try {
-        // 타임아웃 설정 (3초로 단축)
-        timeoutId = setTimeout(() => {
-          if (mounted) {
-            console.warn('세션 로딩 타임아웃 - 기본값으로 설정')
-            setAuthState({
-              user: null,
-              session: null,
-              loading: false,
-              error: null
-            })
-          }
-        }, 3000)
-
         const { data: { session }, error } = await supabase.auth.getSession()
-        
-        // 타임아웃 클리어
-        clearTimeout(timeoutId)
-        
+
         if (error) {
           console.error('세션 가져오기 실패:', error)
           if (mounted) {
-            setAuthState(prev => ({ 
-              ...prev, 
+            setAuthState(prev => ({
+              ...prev,
               error: error.message,
-              loading: false 
+              loading: false
             }))
           }
           return
         }
-        
+
         if (mounted) {
           setAuthState({
             user: session?.user ?? null,
@@ -69,7 +52,6 @@ export function useAuth() {
           })
         }
       } catch (error) {
-        clearTimeout(timeoutId)
         console.error('초기 세션 처리 오류:', error)
         if (mounted) {
           setAuthState({
@@ -84,23 +66,22 @@ export function useAuth() {
 
     getInitialSession()
 
-    // 인증 상태 변화 감지 (단순화)
+    // 인증 상태 변화 감지
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        if (mounted) {
-          setAuthState({
-            user: session?.user ?? null,
-            session,
-            loading: false,
-            error: null
-          })
+        async (event, session) => {
+          if (mounted) {
+            setAuthState({
+              user: session?.user ?? null,
+              session,
+              loading: false,
+              error: null
+            })
+          }
         }
-      }
     )
 
     return () => {
       mounted = false
-      clearTimeout(timeoutId)
       subscription.unsubscribe()
     }
   }, [])
