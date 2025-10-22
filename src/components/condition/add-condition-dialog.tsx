@@ -24,8 +24,8 @@ export function AddConditionDialog({
 }: AddConditionDialogProps) {
   const [formData, setFormData] = useState<AddConditionFormData>({
     type: 'drop',
-    threshold: 4.0,
-    period: 1,
+    threshold: '',
+    period: '',
   });
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -34,11 +34,14 @@ export function AddConditionDialog({
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
 
-    if (!formData.threshold || formData.threshold < 0.1 || formData.threshold > 100) {
-      newErrors.threshold = '등락률은 0.1% ~ 100% 범위로 입력해주세요.';
+    const threshold = parseFloat(formData.threshold);
+    const period = parseInt(formData.period);
+
+    if (!formData.threshold || isNaN(threshold) || threshold < 0 || threshold > 100) {
+      newErrors.threshold = '등락률은 0% ~ 100% 범위로 입력해주세요.';
     }
 
-    if (!formData.period || formData.period < 1 || formData.period > 30) {
+    if (!formData.period || isNaN(period) || period < 1 || period > 30) {
       newErrors.period = '추적일은 1일 ~ 30일 범위로 입력해주세요.';
     }
 
@@ -65,18 +68,22 @@ export function AddConditionDialog({
       // 조건 타입을 DB 형식으로 변환 (데이터베이스 제약조건에 맞게 수정)
       const conditionType = formData.type === 'drop' ? 'drop' : 'rise';
       
+      // 숫자 값 변환
+      const threshold = parseFloat(formData.threshold);
+      const period = parseInt(formData.period);
+      
       // 한국 시간대 기준으로 추적 시작일과 종료일 계산
       const now = new Date();
       const kstNow = new Date(now.toLocaleString("en-US", {timeZone: "Asia/Seoul"}));
       const trackingStartedAt = kstNow.toISOString();
-      const trackingEndedAt = new Date(kstNow.getTime() + formData.period * 24 * 60 * 60 * 1000).toISOString();
+      const trackingEndedAt = new Date(kstNow.getTime() + period * 24 * 60 * 60 * 1000).toISOString();
       
       // DB에 저장할 데이터 준비
       const conditionData: AlertConditionInsert = {
         subscription_id: subscriptionId,
         condition_type: conditionType,
-        threshold: formData.threshold,
-        period_days: formData.period,
+        threshold: threshold,
+        period_days: period,
         is_active: true,
         tracking_started_at: trackingStartedAt,
         tracking_ended_at: trackingEndedAt,
@@ -107,7 +114,7 @@ export function AddConditionDialog({
       console.log('조건이 성공적으로 저장되었습니다:', data);
       
       // 폼 초기화
-      setFormData({ type: 'drop', threshold: 4.0, period: 1 });
+      setFormData({ type: 'drop', threshold: '', period: '' });
       
       // 다이얼로그 닫기
       if (onOpenChange) {
@@ -126,7 +133,7 @@ export function AddConditionDialog({
   };
 
   const handleCancel = () => {
-    setFormData({ type: 'drop', threshold: 4.0, period: 1 });
+    setFormData({ type: 'drop', threshold: '', period: '' });
     setErrors({});
     if (onOpenChange) {
       onOpenChange(false);
@@ -182,10 +189,16 @@ export function AddConditionDialog({
             <label className="text-sm font-medium">추적일</label>
             <Input
               type="number"
-              min="1"
+              min="0"
               max="30"
               value={formData.period}
-              onChange={(e) => setFormData(prev => ({ ...prev, period: parseInt(e.target.value) || 1 }))}
+              onChange={(e) => {
+                const value = e.target.value;
+                // 음수 입력 방지
+                if (value === '' || (!isNaN(parseFloat(value)) && parseFloat(value) >= 0)) {
+                  setFormData(prev => ({ ...prev, period: value }));
+                }
+              }}
               placeholder="예: 3"
             />
             {errors.period && (
@@ -199,10 +212,16 @@ export function AddConditionDialog({
             <Input
               type="number"
               step="0.1"
-              min="0.1"
+              min="0"
               max="100"
               value={formData.threshold}
-              onChange={(e) => setFormData(prev => ({ ...prev, threshold: parseFloat(e.target.value) || 0 }))}
+              onChange={(e) => {
+                const value = e.target.value;
+                // 음수 입력 방지
+                if (value === '' || (!isNaN(parseFloat(value)) && parseFloat(value) >= 0)) {
+                  setFormData(prev => ({ ...prev, threshold: value }));
+                }
+              }}
               placeholder="예: 4.0"
             />
             {errors.threshold && (
@@ -213,7 +232,7 @@ export function AddConditionDialog({
           {/* 조건 미리보기 */}
           <div className="p-3 bg-muted rounded-md">
             <p className="text-sm text-muted-foreground">
-            {formData.period}일간, 총 {formData.threshold}% {formData.type === 'rise' ? '상승' : '하락'}
+            {formData.period || '?'}일간, 총 {formData.threshold || '?'}% 이상 {formData.type === 'rise' ? '상승' : '하락'}
             </p>
           </div>
 

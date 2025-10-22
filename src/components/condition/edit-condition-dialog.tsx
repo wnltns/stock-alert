@@ -32,12 +32,15 @@ export function EditConditionDialog({
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
 
-    if (!formData.threshold || formData.threshold < MIN_THRESHOLD || formData.threshold > MAX_THRESHOLD) {
-      newErrors.threshold = `임계값은 ${MIN_THRESHOLD}%에서 ${MAX_THRESHOLD}% 사이여야 합니다.`;
+    const threshold = parseFloat(formData.threshold);
+    const period = parseInt(formData.period);
+
+    if (!formData.threshold || isNaN(threshold) || threshold < 0 || threshold > MAX_THRESHOLD) {
+      newErrors.threshold = `임계값은 0%에서 ${MAX_THRESHOLD}% 사이여야 합니다.`;
     }
 
-    if (!formData.period || formData.period < MIN_PERIOD || formData.period > MAX_PERIOD) {
-      newErrors.period = `기간은 ${MIN_PERIOD}일에서 ${MAX_PERIOD}일 사이여야 합니다.`;
+    if (!formData.period || isNaN(period) || period < 1 || period > MAX_PERIOD) {
+      newErrors.period = `기간은 1일에서 ${MAX_PERIOD}일 사이여야 합니다.`;
     }
 
     setErrors(newErrors);
@@ -55,17 +58,21 @@ export function EditConditionDialog({
     setErrors({});
 
     try {
+      // 숫자 값 변환
+      const threshold = parseFloat(formData.threshold);
+      const period = parseInt(formData.period);
+
       // 한국 시간대 기준으로 추적 시작일과 종료일 재계산
       const now = new Date();
       const kstNow = new Date(now.toLocaleString("en-US", {timeZone: "Asia/Seoul"}));
       const trackingStartedAt = kstNow.toISOString();
-      const trackingEndedAt = new Date(kstNow.getTime() + formData.period * 24 * 60 * 60 * 1000).toISOString();
+      const trackingEndedAt = new Date(kstNow.getTime() + period * 24 * 60 * 60 * 1000).toISOString();
 
       const updatedCondition: AlertCondition = {
         ...condition,
         condition_type: formData.type,
-        threshold: formData.threshold,
-        period_days: formData.period,
+        threshold: threshold,
+        period_days: period,
         updated_at: new Date().toISOString(),
         tracking_started_at: trackingStartedAt,
         tracking_ended_at: trackingEndedAt,
@@ -130,10 +137,16 @@ export function EditConditionDialog({
             <label className="text-sm font-medium">추적일</label>
             <Input
               type="number"
-              min={MIN_PERIOD}
+              min="0"
               max={MAX_PERIOD}
               value={formData.period}
-              onChange={(e) => setFormData(prev => ({ ...prev, period: parseInt(e.target.value) || 1 }))}
+              onChange={(e) => {
+                const value = e.target.value;
+                // 음수 입력 방지
+                if (value === '' || (!isNaN(parseFloat(value)) && parseFloat(value) >= 0)) {
+                  setFormData(prev => ({ ...prev, period: value }));
+                }
+              }}
               placeholder="예: 3"
             />
             {errors.period && (
@@ -147,10 +160,16 @@ export function EditConditionDialog({
             <Input
               type="number"
               step="0.1"
-              min={MIN_THRESHOLD}
+              min="0"
               max={MAX_THRESHOLD}
               value={formData.threshold}
-              onChange={(e) => setFormData(prev => ({ ...prev, threshold: parseFloat(e.target.value) || 0 }))}
+              onChange={(e) => {
+                const value = e.target.value;
+                // 음수 입력 방지
+                if (value === '' || (!isNaN(parseFloat(value)) && parseFloat(value) >= 0)) {
+                  setFormData(prev => ({ ...prev, threshold: value }));
+                }
+              }}
               placeholder="예: 4.0"
             />
             {errors.threshold && (
@@ -161,7 +180,7 @@ export function EditConditionDialog({
           {/* 조건 미리보기 */}
           <div className="p-3 bg-muted rounded-md">
             <p className="text-sm text-muted-foreground">
-              {formData.period}일간, 총 {formData.threshold}% {formData.type === 'rise' ? '상승' : '하락'}
+              {formData.period || '?'}일간, 총 {formData.threshold || '?'}% 이상 {formData.type === 'rise' ? '상승' : '하락'}
             </p>
           </div>
 

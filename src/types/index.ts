@@ -422,8 +422,8 @@ export interface AddStockFormData {
 
 export interface AddConditionFormData {
   type: 'rise' | 'drop';
-  threshold: number;
-  period: number;
+  threshold: string;
+  period: string;
 }
 
 // 알림 히스토리 데이터 모델 (notifications 테이블과 연동)
