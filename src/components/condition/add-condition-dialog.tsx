@@ -84,7 +84,6 @@ export function AddConditionDialog({
         condition_type: conditionType,
         threshold: threshold,
         period_days: period,
-        is_active: true,
         tracking_started_at: trackingStartedAt,
         tracking_ended_at: trackingEndedAt,
         cumulative_change_rate: 0.0, // 누적 변동률 초기화

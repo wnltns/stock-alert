@@ -444,7 +444,7 @@ Deno.serve(async (req: Request) => {
 
     console.log(`${nationType} 주식 모니터링 시작`);
 
-    // 활성화된 알림 조건만 조회 (is_active = true)
+    // 활성화된 주식 구독의 알림 조건만 조회 (stock_subscriptions.is_active = true)
     const { data: conditions, error: conditionsError } = await supabase
       .from('alert_conditions')
       .select(`
@@ -456,16 +456,16 @@ Deno.serve(async (req: Request) => {
         cumulative_change_rate,
         tracking_started_at,
         tracking_ended_at,
-        is_active,
         stock_subscriptions!inner(
           stock_code,
           stock_name,
           nation_type,
           user_id,
-          api_info
+          api_info,
+          is_active
         )
       `)
-      .eq('is_active', true)
+      .eq('stock_subscriptions.is_active', true)
       .eq('stock_subscriptions.nation_type', nationType);
 
     if (conditionsError) {
