@@ -22,8 +22,8 @@ export function EditConditionDialog({
 }: EditConditionDialogProps) {
   const [formData, setFormData] = useState<AddConditionFormData>({
     type: condition.condition_type as 'rise' | 'drop',
-    threshold: condition.threshold,
-    period: condition.period_days,
+    threshold: condition.threshold.toString(),
+    period: condition.period_days.toString(),
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
