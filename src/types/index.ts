@@ -406,7 +406,12 @@ export type FcmTokenUpdate = Database['public']['Tables']['fcm_tokens']['Update'
 export interface StockDetail {
   subscription: StockSubscription;
   stockInfo: StockInfo;
-  conditions: AlertCondition[];
+  conditions: AlertConditionWithStatus[];
+}
+
+// 조건 충족 상태가 포함된 AlertCondition
+export interface AlertConditionWithStatus extends AlertCondition {
+  is_condition_met?: boolean; // 백엔드에서 계산된 조건 충족 상태
 }
 
 // 폼 데이터 타입들

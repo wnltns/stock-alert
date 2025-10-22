@@ -83,37 +83,30 @@ export function useStockPrices(): UseStockPricesReturn {
 
       const result = await response.json();
       
+      // 디버깅 로그 (개발 환경에서만)
+      if (process.env.NODE_ENV === 'development') {
+        console.log('백엔드에서 받은 데이터:', result.data);
+        if (result.data && result.data.length > 0) {
+          result.data.forEach((stock: any) => {
+            if (stock.conditions && stock.conditions.length > 0) {
+              console.log(`${stock.subscription.stock_name} 조건들:`, stock.conditions.map((c: any) => ({
+                id: c.id,
+                condition_type: c.condition_type,
+                threshold: c.threshold,
+                is_condition_met: c.is_condition_met
+              })));
+            }
+          });
+        }
+      }
+      
       // 캐시 상태 업데이트 (서버에서 캐시 사용 여부 확인)
       setCached(result.cached || false);
       
-      // 알림 조건 데이터도 함께 조회
-      const stockCodes = result.data.map((item: any) => item.subscription.stock_code);
-      
-      if (stockCodes.length > 0) {
-        const { data: conditions, error: conditionsError } = await supabase
-          .from('alert_conditions')
-          .select('*')
-          .in('subscription_id', result.data.map((item: any) => item.subscription.id));
-
-        if (conditionsError) {
-          console.warn('알림 조건 조회 중 오류:', conditionsError);
-        }
-
-        // 주가 데이터와 조건 데이터를 결합
-        const stocksWithConditions = result.data.map((item: any) => ({
-          ...item,
-          conditions: conditions?.filter(condition => 
-            condition.subscription_id === item.subscription.id
-          ) || []
-        }));
-
-        setStocks(stocksWithConditions);
-        saveCachedData(stocksWithConditions);
-        setLastFetchedAt(new Date());
-      } else {
-        setStocks([]);
-        setLastFetchedAt(new Date());
-      }
+      // 백엔드에서 이미 조건 충족 상태가 계산된 데이터를 그대로 사용
+      setStocks(result.data || []);
+      saveCachedData(result.data || []);
+      setLastFetchedAt(new Date());
 
     } catch (err) {
       console.error('주가 데이터 조회 오류:', err);

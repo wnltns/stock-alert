@@ -65,10 +65,11 @@ export function AddConditionDialog({
       // 조건 타입을 DB 형식으로 변환 (데이터베이스 제약조건에 맞게 수정)
       const conditionType = formData.type === 'drop' ? 'drop' : 'rise';
       
-      // 현재 날짜를 기준으로 추적 시작일과 종료일 계산
+      // 한국 시간대 기준으로 추적 시작일과 종료일 계산
       const now = new Date();
-      const trackingStartedAt = now.toISOString();
-      const trackingEndedAt = new Date(now.getTime() + formData.period * 24 * 60 * 60 * 1000).toISOString();
+      const kstNow = new Date(now.toLocaleString("en-US", {timeZone: "Asia/Seoul"}));
+      const trackingStartedAt = kstNow.toISOString();
+      const trackingEndedAt = new Date(kstNow.getTime() + formData.period * 24 * 60 * 60 * 1000).toISOString();
       
       // DB에 저장할 데이터 준비
       const conditionData: AlertConditionInsert = {

@@ -514,13 +514,13 @@ export default function ConditionManagementPage() {
                               {condition.tracking_started_at && condition.tracking_ended_at ? (
                                 <>
                                   <div className="block sm:hidden">
-                                    <div>추적일: {new Date(condition.tracking_started_at).toLocaleDateString('ko-KR', { month: '2-digit', day: '2-digit' })} ~ {new Date(condition.tracking_ended_at).toLocaleDateString('ko-KR', { month: '2-digit', day: '2-digit' })}</div>
+                                    <div>추적일: {new Date(condition.tracking_started_at).toLocaleDateString('ko-KR', { month: '2-digit', day: '2-digit', timeZone: 'Asia/Seoul' })} ~ {new Date(condition.tracking_ended_at).toLocaleDateString('ko-KR', { month: '2-digit', day: '2-digit', timeZone: 'Asia/Seoul' })}</div>
                                     <div>
                                       누적 변동률: <span className={condition.cumulative_change_rate >= 0 ? 'text-green-600' : 'text-red-600'}>{condition.cumulative_change_rate.toFixed(2)}%</span>
                                     </div>
                                   </div>
                                   <div className="hidden sm:block">
-                                    추적일: {new Date(condition.tracking_started_at).toLocaleDateString('ko-KR', { month: '2-digit', day: '2-digit' })} ~ {new Date(condition.tracking_ended_at).toLocaleDateString('ko-KR', { month: '2-digit', day: '2-digit' })}
+                                    추적일: {new Date(condition.tracking_started_at).toLocaleDateString('ko-KR', { month: '2-digit', day: '2-digit', timeZone: 'Asia/Seoul' })} ~ {new Date(condition.tracking_ended_at).toLocaleDateString('ko-KR', { month: '2-digit', day: '2-digit', timeZone: 'Asia/Seoul' })}
                                     <span className="mx-2 text-muted-foreground">•</span>
                                     <span>
                                       누적 변동률: <span className={condition.cumulative_change_rate >= 0 ? 'text-green-600' : 'text-red-600'}>{condition.cumulative_change_rate.toFixed(2)}%</span>
@@ -529,7 +529,7 @@ export default function ConditionManagementPage() {
                                 </>
                               ) : (
                                 <>
-                                  {condition.created_at ? new Date(condition.created_at).toLocaleDateString('ko-KR', { month: '2-digit', day: '2-digit' }) : '날짜 없음'} 설정
+                                  {condition.created_at ? new Date(condition.created_at).toLocaleDateString('ko-KR', { month: '2-digit', day: '2-digit', timeZone: 'Asia/Seoul' }) : '날짜 없음'} 설정
                                 </>
                               )}
                             </div>

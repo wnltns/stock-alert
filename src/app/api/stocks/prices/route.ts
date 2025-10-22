@@ -45,12 +45,54 @@ export async function POST(request: NextRequest) {
         console.warn('알림 조건 조회 중 오류:', conditionsError);
       }
 
+      // 한국 시간대 기준으로 오늘 날짜 계산 (DB가 한국 시간대로 설정됨)
+      const now = new Date();
+      const kstDate = new Date(now.toLocaleString("en-US", {timeZone: "Asia/Seoul"}));
+      const todayStr = kstDate.toISOString().split('T')[0]; // YYYY-MM-DD 형식
+      
+      console.log('오늘 날짜 (한국 시간 기준):', todayStr);
+
+      // 각 조건에 대해 오늘 알림이 있는지 확인
+      const conditionsWithStatus = await Promise.all(
+        (conditions || []).map(async (condition) => {
+          // DB가 한국 시간대로 설정되어 있으므로 간단한 쿼리 사용
+          const { data: notifications } = await supabase
+            .from('notifications')
+            .select('id, created_at, sent_at')
+            .eq('condition_id', condition.id)
+            .gte('created_at', `${todayStr}T00:00:00`)
+            .lt('created_at', `${todayStr}T23:59:59`)
+            .limit(1);
+
+          const isMet = notifications && notifications.length > 0;
+          
+          // 디버깅 로그
+          console.log(`조건 ${condition.id} 상태 확인:`, {
+            conditionType: condition.condition_type,
+            threshold: condition.threshold,
+            todayStr: todayStr,
+            timeRange: `${todayStr}T00:00:00 ~ ${todayStr}T23:59:59`,
+            notificationsFound: notifications?.length || 0,
+            is_condition_met: isMet,
+            sampleNotification: notifications?.[0] ? {
+              created_at: notifications[0].created_at,
+              sent_at: notifications[0].sent_at
+            } : null
+          });
+
+          return {
+            ...condition,
+            is_condition_met: isMet
+          };
+        })
+      );
+
       // 주가 데이터와 조건 데이터를 결합
       const stocksWithConditions = stockDetails.map(item => ({
         ...item,
-        conditions: conditions?.filter(condition => 
+        conditions: conditionsWithStatus.filter(condition => 
           condition.subscription_id === item.subscription.id
-        ) || []
+        )
       }));
 
       return NextResponse.json({

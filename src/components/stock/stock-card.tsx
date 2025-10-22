@@ -2,7 +2,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
-import { StockDetail, AlertHistory, Notification } from '@/types';
+import { StockDetail, AlertHistory, Notification, AlertConditionWithStatus } from '@/types';
 import { AlertHistoryDialog } from './alert-history-dialog';
 import { useState } from 'react';
 
@@ -11,10 +11,9 @@ interface StockCardProps {
   onViewDetails: (stockId: string) => void;
   onAddCondition: (stockId: string) => void;
   alertHistory?: AlertHistory[];
-  notifications?: Notification[];
 }
 
-export function StockCard({ stock, onViewDetails, onAddCondition, alertHistory = [], notifications = [] }: StockCardProps) {
+export function StockCard({ stock, onViewDetails, onAddCondition, alertHistory = [] }: StockCardProps) {
   const { subscription, stockInfo, conditions } = stock;
   const [isHistoryDialogOpen, setIsHistoryDialogOpen] = useState(false);
   
@@ -46,52 +45,6 @@ export function StockCard({ stock, onViewDetails, onAddCondition, alertHistory =
     } else {
       return (amount > 0 ? '+' : '') + amount.toFixed(2);
     }
-  };
-
-  const isConditionMet = (condition: any) => {
-    if (!condition.is_active) return false;
-    
-    // 오늘 날짜 확인 (UTC 기준)
-    const today = new Date();
-    const todayStart = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()));
-    const todayEnd = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate() + 1));
-    
-    // 해당 조건에 대해 notification 테이블에서 오늘 생성된 컬럼이 있는지 확인
-    const hasNotificationToday = notifications.some(notification => {
-      // 조건 ID가 일치하는지 확인
-      if (notification.condition_id !== condition.id) return false;
-      
-      // 오늘 생성된 알림인지 확인
-      const notificationDate = new Date(notification.created_at || notification.sent_at || '');
-      const isToday = notificationDate >= todayStart && notificationDate < todayEnd;
-      
-      // 디버깅을 위한 로그 (개발 환경에서만)
-      if (process.env.NODE_ENV === 'development') {
-        console.log(`조건 확인: ${condition.id}`, {
-          conditionType: condition.condition_type,
-          threshold: condition.threshold,
-          notificationId: notification.id,
-          notificationDate: notificationDate.toISOString(),
-          todayStart: todayStart.toISOString(),
-          todayEnd: todayEnd.toISOString(),
-          isToday: isToday
-        });
-      }
-      
-      return isToday;
-    });
-    
-    // 디버깅을 위한 로그 (개발 환경에서만)
-    if (process.env.NODE_ENV === 'development') {
-      console.log(`조건 ${condition.id} 최종 결과:`, {
-        conditionType: condition.condition_type,
-        threshold: condition.threshold,
-        hasNotificationToday: hasNotificationToday,
-        notificationsCount: notifications.filter(n => n.condition_id === condition.id).length
-      });
-    }
-    
-    return hasNotificationToday;
   };
 
   return (
@@ -131,13 +84,25 @@ export function StockCard({ stock, onViewDetails, onAddCondition, alertHistory =
           <div className="text-sm font-medium text-muted-foreground">설정된 조건</div>
           {conditions.length > 0 ? (
             <div className="space-y-1">
-              {conditions.slice(0, 2).map((condition) => {
+              {conditions.slice(0, 2).map((condition: AlertConditionWithStatus) => {
                 const typeLabels: Record<string, string> = {
                   rise: '상승',
                   drop: '하락',
                 };
                 
-                const isMet = isConditionMet(condition);
+                // 백엔드에서 계산된 조건 충족 상태 사용
+                const isMet = condition.is_condition_met || false;
+                
+                // 디버깅 로그 (개발 환경에서만)
+                if (process.env.NODE_ENV === 'development') {
+                  console.log(`프론트엔드 조건 상태:`, {
+                    conditionId: condition.id,
+                    conditionType: condition.condition_type,
+                    threshold: condition.threshold,
+                    is_condition_met: condition.is_condition_met,
+                    isMet: isMet
+                  });
+                }
                 
                 return (
                   <div key={condition.id} className="flex items-center justify-between text-xs bg-muted/50 dark:bg-muted/30 p-2 rounded transition-colors gap-2">

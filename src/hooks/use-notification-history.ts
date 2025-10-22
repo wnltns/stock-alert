@@ -11,6 +11,7 @@ interface NotificationHistory {
   sent_at: string | null;
   delivery_confirmed_at: boolean | null;
   created_at: string | null;
+  user_id: string;
   stock_subscriptions?: {
     stock_code: string;
     stock_name: string;

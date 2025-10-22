@@ -55,10 +55,11 @@ export function EditConditionDialog({
     setErrors({});
 
     try {
-      // 현재 날짜를 기준으로 추적 시작일과 종료일 재계산
+      // 한국 시간대 기준으로 추적 시작일과 종료일 재계산
       const now = new Date();
-      const trackingStartedAt = now.toISOString();
-      const trackingEndedAt = new Date(now.getTime() + formData.period * 24 * 60 * 60 * 1000).toISOString();
+      const kstNow = new Date(now.toLocaleString("en-US", {timeZone: "Asia/Seoul"}));
+      const trackingStartedAt = kstNow.toISOString();
+      const trackingEndedAt = new Date(kstNow.getTime() + formData.period * 24 * 60 * 60 * 1000).toISOString();
 
       const updatedCondition: AlertCondition = {
         ...condition,

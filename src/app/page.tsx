@@ -31,7 +31,6 @@ export default function Home() {
     refreshStocks
   } = useStockPrices();
 
-
   const handleAddStock = async (data: AddStockFormData) => {
     // 주식 등록 완료
     console.log('주식 등록 완료:', data);

@@ -12,7 +12,7 @@ SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
 # Firebase Cloud Messaging 설정
 FCM_SERVER_KEY=your_fcm_server_key
 
-# 모니터링 스케줄 설정 (PRD에 명시된 시간)
+# 모니터링 스케줄 설정 (PRD에 명시된 시간, 한국 시간대 기준)
 KOREAN_MARKET_CHECK_TIME=09:00
 FOREIGN_MARKET_CHECK_TIME=23:00
 MONITORING_TIMEZONE=Asia/Seoul
@@ -39,10 +39,10 @@ supabase secrets set MONITORING_TIMEZONE=Asia/Seoul
 
 **국내 주식 모니터링 (매일 오전 9시 KST)**
 ```sql
--- 매일 오전 9시 (KST) = UTC 00:00
+-- 매일 오전 9시 (KST) - 데이터베이스가 한국 시간대로 설정됨
 SELECT cron.schedule(
   'korean-stock-monitoring',
-  '0 0 * * *',
+  '0 9 * * *',
   'SELECT net.http_post(
     url:=''https://your-project-ref.supabase.co/functions/v1/check-stocks'',
     headers:=''{"Content-Type": "application/json", "Authorization": "Bearer your-anon-key"}''::jsonb,
@@ -53,10 +53,10 @@ SELECT cron.schedule(
 
 **해외 주식 모니터링 (매일 오후 11시 KST)**
 ```sql
--- 매일 오후 11시 (KST) = UTC 14:00
+-- 매일 오후 11시 (KST) - 데이터베이스가 한국 시간대로 설정됨
 SELECT cron.schedule(
   'foreign-stock-monitoring',
-  '0 14 * * *',
+  '0 23 * * *',
   'SELECT net.http_post(
     url:=''https://your-project-ref.supabase.co/functions/v1/check-stocks'',
     headers:=''{"Content-Type": "application/json", "Authorization": "Bearer your-anon-key"}''::jsonb,
