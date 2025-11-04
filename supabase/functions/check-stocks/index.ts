@@ -269,6 +269,16 @@ async function sendNotification(notificationData: NotificationData): Promise<boo
         await sendFcmV1(t.token, title, body);
       } catch (e) {
         console.error('FCM 전송 오류:', e);
+
+        // UNREGISTERED 에러인 경우 토큰 비활성화
+        const errorMessage = String(e);
+        if (errorMessage.includes('UNREGISTERED') || errorMessage.includes('404')) {
+          console.log('무효한 토큰 비활성화:', t.token);
+          await supabase
+            .from('fcm_tokens')
+            .update({ is_active: false })
+            .eq('token', t.token);
+        }
       }
     }
 

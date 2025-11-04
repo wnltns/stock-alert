@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
     // 쿼리 파라미터 파싱
     const { searchParams } = new URL(request.url);
     const subscriptionId = searchParams.get('subscription_id');
-    const limit = parseInt(searchParams.get('limit') || '50');
+    const limit = parseInt(searchParams.get('limit') || '20');
     const offset = parseInt(searchParams.get('offset') || '0');
 
     // 알림 히스토리 조회

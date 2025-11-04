@@ -142,23 +142,13 @@ export function AlertHistoryDialog({
           </DialogTitle>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <span>{stockCode} • 총 {total || allNotifications.length}건의 알림</span>
+              <span>{stockCode} • 최근 {allNotifications.length}건의 알림</span>
               {unreadCount > 0 && (
                 <Badge variant="destructive">
                   {unreadCount}개 미읽음
                 </Badge>
               )}
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleRefresh}
-              disabled={loading}
-              className="text-xs"
-            >
-              <RefreshCw className={`h-3 w-3 mr-1 ${loading ? 'animate-spin' : ''}`} />
-              새로고침
-            </Button>
           </div>
         </DialogHeader>
 
